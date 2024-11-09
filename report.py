@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -6,10 +7,6 @@ from prophet import Prophet
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import LabelEncoder
-
-# Load the dataset
-df = pd.read_excel('PD W44.xlsx')
-
 
 def get_supplier_GMV(df):
     try:
@@ -133,55 +130,122 @@ def get_supplier_region_contribution(df):
     supplier_region_contribution = supplier_region_contribution.sort_values(by=['region', 'Contribution (%)'], ascending=[True, False])
     return supplier_region_contribution
 
+# Main Streamlit app
+st.title("GMV Analysis Dashboard")
+st.write("Upload your dataset and view analysis results.")
 
-def save_metrics_to_excel(df, output_file=None):
-    if not output_file:
+# File uploader
+uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+
+    # Display data preview
+    st.subheader("Data Preview")
+    st.write(df.head())
+
+    # Option to calculate and view each metric
+    st.sidebar.header("Choose Analysis to Display")
+
+    if st.sidebar.checkbox("Supplier GMV"):
+        st.subheader("Supplier GMV")
+        supplier_GMV = get_supplier_GMV(df)
+        st.write(supplier_GMV)
+        
+        # Plot supplier GMV
+        fig, ax = plt.subplots()
+        sns.barplot(x='Supplier', y='Total GMV', data=supplier_GMV, ax=ax)
+        plt.xticks(rotation=90)
+        st.pyplot(fig)
+
+    if st.sidebar.checkbox("Subcategory GMV"):
+        st.subheader("Subcategory GMV")
+        subcategory_GMV = get_subcategory_GMV(df)
+        st.write(subcategory_GMV)
+        
+        # Plot subcategory GMV
+        fig, ax = plt.subplots()
+        sns.barplot(x='sub_cat', y='Total GMV', data=subcategory_GMV, ax=ax)
+        plt.xticks(rotation=90)
+        st.pyplot(fig)
+
+    if st.sidebar.checkbox("Region GMV"):
+        st.subheader("Region GMV")
+        region_GMV = get_region_GMV(df)
+        st.write(region_GMV)
+        
+        # Plot region GMV
+        fig, ax = plt.subplots()
+        sns.barplot(x='region', y='Total GMV', data=region_GMV, ax=ax)
+        plt.xticks(rotation=90)
+        st.pyplot(fig)
+
+    if st.sidebar.checkbox("Restaurant GMV"):
+        st.subheader("Restaurant GMV")
+        restaurant_GMV = get_restaurant_GMV(df)
+        st.write(restaurant_GMV)
+        
+        # Plot restaurant GMV
+        fig, ax = plt.subplots()
+        sns.barplot(x='Restaurant_name', y='Total GMV', data=restaurant_GMV, ax=ax)
+        plt.xticks(rotation=90)
+        st.pyplot(fig)
+
+    if st.sidebar.checkbox("Restaurant Region GMV"):
+        st.subheader("Restaurant Region GMV")
+        restaurant_region_GMV = get_restaurant_region_GMV(df)
+        st.write(restaurant_region_GMV)
+
+    if st.sidebar.checkbox("Restaurant Supplier Region GMV"):
+        st.subheader("Restaurant Supplier Region GMV")
+        restaurant_supplier_region_GMV = get_restaurant_supplier_region_GMV(df)
+        st.write(restaurant_supplier_region_GMV)
+
+    if st.sidebar.checkbox("Product Supplier Region GMV"):
+        st.subheader("Product Supplier Region GMV")
+        product_supplier_region_GMV = get_product_supplier_region_GMV(df)
+        st.write(product_supplier_region_GMV)
+
+    if st.sidebar.checkbox("Top Restaurants per Supplier and Region"):
+        st.subheader("Top Restaurants per Supplier and Region")
+        top_restaurants = get_top_restaurants_per_supplier_region(df)
+        st.write(top_restaurants)
+
+    if st.sidebar.checkbox("Top Products per Supplier and Region"):
+        st.subheader("Top Products per Supplier and Region")
+        top_products = get_top_products_per_supplier_region(df)
+        st.write(top_products)
+
+    if st.sidebar.checkbox("Supplier Region Contribution"):
+        st.subheader("Supplier Region Contribution")
+        supplier_region_contribution = get_supplier_region_contribution(df)
+        st.write(supplier_region_contribution)
+        
+        # Plot supplier region contribution
+        fig, ax = plt.subplots()
+        sns.barplot(x='Supplier', y='Contribution (%)', hue='region', data=supplier_region_contribution, ax=ax)
+        plt.xticks(rotation=90)
+        st.pyplot(fig)
+
+    # Download report button
+    if st.sidebar.button("Download Report"):
         output_file = f"summary_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+        with pd.ExcelWriter(output_file) as writer:
+            get_supplier_GMV(df).to_excel(writer, sheet_name='Supplier_GMV', index=False)
+            get_subcategory_GMV(df).to_excel(writer, sheet_name='Subcategory_GMV', index=False)
+            get_region_GMV(df).to_excel(writer, sheet_name='Region_GMV', index=False)
+            get_restaurant_GMV(df).to_excel(writer, sheet_name='Restaurant_GMV', index=False)
+            get_restaurant_region_GMV(df).to_excel(writer, sheet_name='Restaurant_Region_GMV', index=False)
+            get_restaurant_supplier_region_GMV(df).to_excel(writer, sheet_name='Restaurant_Supplier_Region_GMV', index=False)
+            get_product_supplier_region_GMV(df).to_excel(writer, sheet_name='Product_Supplier_Region_GMV', index=False)
+            get_top_restaurants_per_supplier_region(df).to_excel(writer, sheet_name='Top_Restaurants_Per_Supplier', index=False)
+            get_top_products_per_supplier_region(df).to_excel(writer, sheet_name='Top_Products_Per_Supplier', index=False)
+            get_supplier_region_contribution(df).to_excel(writer, sheet_name='Supplier_Region_Contribution', index=False)
 
-    supplier_GMV = get_supplier_GMV(df)
-    subcategory_GMV = get_subcategory_GMV(df)
-    region_GMV = get_region_GMV(df)
-    restaurant_GMV = get_restaurant_GMV(df)
-    restaurant_region_GMV = get_restaurant_region_GMV(df)
-    restaurant_supplier_region_GMV = get_restaurant_supplier_region_GMV(df)
-    product_supplier_region_GMV = get_product_supplier_region_GMV(df)
-    top_restaurants = get_top_restaurants_per_supplier_region(df)
-    top_products = get_top_products_per_supplier_region(df)
-    supplier_region_contribution = get_supplier_region_contribution(df)
-
-    with pd.ExcelWriter(output_file) as writer:
-        if not supplier_GMV.empty:
-            supplier_GMV.to_excel(writer, sheet_name='Supplier_GMV', index=False)
-        if not subcategory_GMV.empty:
-            subcategory_GMV.to_excel(writer, sheet_name='Subcategory_GMV', index=False)
-        if not region_GMV.empty:
-            region_GMV.to_excel(writer, sheet_name='Region_GMV', index=False)
-        if not restaurant_GMV.empty:
-            restaurant_GMV.to_excel(writer, sheet_name='Restaurant_GMV', index=False)
-        if not restaurant_region_GMV.empty:
-            restaurant_region_GMV.to_excel(writer, sheet_name='Restaurant_Region_GMV', index=False)
-        if not restaurant_supplier_region_GMV.empty:
-            restaurant_supplier_region_GMV.to_excel(writer, sheet_name='Restaurant_Supplier_Region_GMV', index=False)
-        if not product_supplier_region_GMV.empty:
-            product_supplier_region_GMV.to_excel(writer, sheet_name='Product_Supplier_Region_GMV', index=False)
-        if not top_restaurants.empty:
-            top_restaurants.to_excel(writer, sheet_name='Top_Restaurants_Per_Supplier', index=False)
-        if not top_products.empty:
-            top_products.to_excel(writer, sheet_name='Top_Products_Per_Supplier', index=False)
-        if not supplier_region_contribution.empty:
-            supplier_region_contribution.to_excel(writer, sheet_name='Supplier_Region_Contribution', index=False)
-    
-    print(f"All metrics saved to {output_file}")
-
-
-# Run calculations and save metrics
-supplier_GMV = get_supplier_GMV(df)
-subcategory_GMV = get_subcategory_GMV(df)
-region_GMV = get_region_GMV(df)
-restaurant_GMV = get_restaurant_GMV(df)
-restaurant_region_GMV = get_restaurant_region_GMV(df)
-restaurant_supplier_region_GMV = get_restaurant_supplier_region_GMV(df)
-product_supplier_region_GMV = get_product_supplier_region_GMV(df)
-
-# Save to Excel with a dynamic filename
-save_metrics_to_excel(df)
+        with open(output_file, "rb") as file:
+            btn = st.download_button(
+                label="Download Excel Report",
+                data=file,
+                file_name=output_file,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
