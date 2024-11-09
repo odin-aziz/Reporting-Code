@@ -3,10 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
-from prophet import Prophet
-from sklearn.cluster import KMeans
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import LabelEncoder
+
 
 def get_supplier_GMV(df):
     try:
