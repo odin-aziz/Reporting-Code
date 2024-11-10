@@ -136,7 +136,7 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
         restaurants_this_week_not_last_week = restaurants_this_week_not_last_week.groupby(['Restaurant_name', 'region']).sum().reset_index()
 
         # Display both tables
-        st.subheader("Did NOT Reorder")
+        st.subheader("Did NOT Re Order")
         st.write(restaurants_last_week_not_this_week)
 
         st.subheader("New/Winback/Biweekly")
