@@ -16,7 +16,7 @@ def calculate_GMV(df, group_by_columns, sum_column='GMV'):
         # Round to integers after filling NaNs
         gmv['Total GMV (€)'] = gmv['Total GMV (€)'].round(0).astype(int)
         
-        return gmv.sort_values(by='Total GMV (€)', ascending=False)
+        return gmv.sort_values(by='Total GMV (€)', ascending=False).drop(columns=['variant_id', 'Restaurant_id'])
     except KeyError as e:
         st.warning(f"Missing column for GMV calculation: {e}")
         return pd.DataFrame()
@@ -59,24 +59,25 @@ if uploaded_file:
     # Sidebar for Navigation
     st.sidebar.title("Navigation")
     section = st.sidebar.radio("Select Section", [
-        "Summary", "Region Analysis", "Supplier Analysis", "Subcategory Analysis", "Detailed GMV Analysis"
+        "Summary", "Region Analysis", "Supplier Analysis", "Subcategory Analysis"
     ])
 
     # Display content based on selected section
     if section == "Summary":
         st.subheader("📊 Summary of Key Metrics")
+        
+        # Main Summary Metrics
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
         with col2:
             st.metric("Total Weight", f"{df['Weight'].sum():,.2f}")
-        with col3:
-            st.metric("Total Purchase Price", f"{df['purchase price'].sum():,.2f}")
         
-        col4, col5 = st.columns(2)
-        with col4:
-            st.metric("Total Tax Amount", f"{df['tax_amount'].sum():,.2f}")
-
+        # Region-wise GMV Breakdown under Key Metrics
+        region_hierarchy_data = get_region_hierarchy(df)
+        for region, data in region_hierarchy_data.items():
+            st.write(f"### **{region} - GMV: {data['Total GMV']}**")
+        
     elif section == "Region Analysis":
         st.subheader("📍 Region-Based GMV Analysis")
         region_hierarchy_data = get_region_hierarchy(df)
@@ -100,22 +101,6 @@ if uploaded_file:
         subcategory_gmv = calculate_GMV(df, ['sub_cat'])
         st.dataframe(subcategory_gmv, use_container_width=True)
 
-    elif section == "Detailed GMV Analysis":
-        st.subheader("🔍 Comprehensive GMV Analysis by Supplier, Region, Subcategory, and Product")
-        comprehensive_data = get_comprehensive_GMV(df)
-
-        st.write("#### Supplier GMV")
-        st.dataframe(comprehensive_data['Supplier GMV'], use_container_width=True)
-        
-        st.write("#### Region GMV")
-        st.dataframe(comprehensive_data['Region GMV'], use_container_width=True)
-        
-        st.write("#### Subcategory GMV")
-        st.dataframe(comprehensive_data['Subcategory GMV'], use_container_width=True)
-        
-        st.write("#### Product GMV")
-        st.dataframe(comprehensive_data['Product GMV'], use_container_width=True)
-
     # Download Report Button in Sidebar
     st.sidebar.title("Export")
     if st.sidebar.button("Download Report"):
@@ -126,6 +111,7 @@ if uploaded_file:
                 data['Supplier GMV'].to_excel(writer, sheet_name=f'{region}_Supplier_GMV', index=False)
                 data['Restaurant GMV'].to_excel(writer, sheet_name=f'{region}_Restaurant_GMV', index=False)
 
+            comprehensive_data = get_comprehensive_GMV(df)
             comprehensive_data['Supplier GMV'].to_excel(writer, sheet_name='Supplier_GMV', index=False)
             comprehensive_data['Region GMV'].to_excel(writer, sheet_name='Region_GMV', index=False)
             comprehensive_data['Subcategory GMV'].to_excel(writer, sheet_name='Subcategory_GMV', index=False)
