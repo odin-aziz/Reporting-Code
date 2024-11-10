@@ -45,11 +45,22 @@ def get_region_hierarchy(df):
         }
     return region_data
 
+def get_comprehensive_GMV(df):
+    """Extracts GMV for each supplier, region, subcategory, and product."""
+    supplier_gmv = calculate_GMV(df, ['Supplier'])
+    region_gmv = calculate_GMV(df, ['region'])
+    subcategory_gmv = calculate_GMV(df, ['sub_cat'])
+    product_gmv = calculate_GMV(df, ['product_name'])
+    return {
+        "Supplier GMV": supplier_gmv,
+        "Region GMV": region_gmv,
+        "Subcategory GMV": subcategory_gmv,
+        "Product GMV": product_gmv
+    }
+
 # --- Main Streamlit App ---
 
-# Section 1: Dashboard Overview
-st.title("Weekly Dashboard Overview")
-st.write("Upload your dataset for analysis.")
+st.title("Weekly Dashboard")
 
 # File uploader
 uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
@@ -57,49 +68,60 @@ uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Section 1: High-Level Summary
-    st.subheader("High-Level Summary of Key Metrics")
-    st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
-    st.metric("Total Orders", df['order_id'].nunique())
-    
-    # Section 2: Region-based Analysis with Hierarchical GMV Tables
-    st.subheader("Detailed GMV Analysis by Region")
+    # Section 1: Dashboard Overview in First Tab
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Dashboard", "Region-Based Analysis", "Supplier GMV", "Subcategory GMV", "Comprehensive GMV"])
 
-    region_hierarchy_data = get_region_hierarchy(df)
+    # Tab 1: High-Level Summary Dashboard
+    with tab1:
+        st.subheader("High-Level Summary")
+        st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
+        st.metric("Total Orders", df['order_id'].nunique())
 
-    # Display hierarchical tables for each region
-    for region, data in region_hierarchy_data.items():
-        st.write(f"### {region} - Total GMV: {data['Total GMV']}")
+    # Tab 2: Region-Based Analysis with Hierarchical GMV Tables
+    with tab2:
+        st.subheader("Detailed GMV Analysis by Region")
+        region_hierarchy_data = get_region_hierarchy(df)
 
-        st.write("#### Subcategory GMV")
-        st.write(data['Subcategory GMV'])
+        # Display hierarchical tables for each region
+        for region, data in region_hierarchy_data.items():
+            st.write(f"### {region} - Total GMV: {data['Total GMV']}")
+            st.write("#### Subcategory GMV")
+            st.write(data['Subcategory GMV'])
+            st.write("#### Supplier GMV")
+            st.write(data['Supplier GMV'])
+            st.write("#### Restaurant GMV")
+            st.write(data['Restaurant GMV'])
+
+    # Tab 3: Supplier GMV Analysis
+    with tab3:
+        st.subheader("Supplier GMV Analysis")
+        supplier_gmv = calculate_GMV(df, ['Supplier'])
+        st.write(supplier_gmv)
+
+    # Tab 4: Subcategory GMV Analysis
+    with tab4:
+        st.subheader("Subcategory GMV Analysis")
+        subcategory_gmv = calculate_GMV(df, ['sub_cat'])
+        st.write(subcategory_gmv)
+
+    # Tab 5: Comprehensive GMV Analysis (Suppliers, Regions, Subcategories, Products)
+    with tab5:
+        st.subheader("Comprehensive GMV Analysis by Supplier, Region, Subcategory, and Product")
+        comprehensive_data = get_comprehensive_GMV(df)
 
         st.write("#### Supplier GMV")
-        st.write(data['Supplier GMV'])
+        st.write(comprehensive_data['Supplier GMV'])
+        
+        st.write("#### Region GMV")
+        st.write(comprehensive_data['Region GMV'])
+        
+        st.write("#### Subcategory GMV")
+        st.write(comprehensive_data['Subcategory GMV'])
+        
+        st.write("#### Product GMV")
+        st.write(comprehensive_data['Product GMV'])
 
-        st.write("#### Restaurant GMV")
-        st.write(data['Restaurant GMV'])
-
-    # Section 3: Comprehensive Data Extraction
-    st.subheader("Comprehensive Data Extraction")
-
-    def extract_unique_values(df, column_name):
-        """Extracts unique values for given column in DataFrame."""
-        return pd.DataFrame(df[column_name].unique(), columns=[column_name])
-
-    st.write("Unique Suppliers")
-    st.write(extract_unique_values(df, 'Supplier'))
-
-    st.write("Unique Regions")
-    st.write(extract_unique_values(df, 'region'))
-
-    st.write("Unique Subcategories")
-    st.write(extract_unique_values(df, 'sub_cat'))
-
-    st.write("Unique Products")
-    st.write(extract_unique_values(df, 'product_name'))
-
-    # Download Report Button
+    # Download Report Button in Sidebar
     if st.sidebar.button("Download Report"):
         output_file = f"summary_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
         with pd.ExcelWriter(output_file) as writer:
@@ -108,12 +130,12 @@ if uploaded_file:
                 data['Subcategory GMV'].to_excel(writer, sheet_name=f'{region}_Subcategory_GMV', index=False)
                 data['Supplier GMV'].to_excel(writer, sheet_name=f'{region}_Supplier_GMV', index=False)
                 data['Restaurant GMV'].to_excel(writer, sheet_name=f'{region}_Restaurant_GMV', index=False)
-        
-            # Write unique value extracts
-            extract_unique_values(df, 'Supplier').to_excel(writer, sheet_name='Unique_Suppliers', index=False)
-            extract_unique_values(df, 'region').to_excel(writer, sheet_name='Unique_Regions', index=False)
-            extract_unique_values(df, 'sub_cat').to_excel(writer, sheet_name='Unique_Subcategories', index=False)
-            extract_unique_values(df, 'product_name').to_excel(writer, sheet_name='Unique_Products', index=False)
+
+            # Write comprehensive GMV data for Suppliers, Regions, Subcategories, Products
+            comprehensive_data['Supplier GMV'].to_excel(writer, sheet_name='Supplier_GMV', index=False)
+            comprehensive_data['Region GMV'].to_excel(writer, sheet_name='Region_GMV', index=False)
+            comprehensive_data['Subcategory GMV'].to_excel(writer, sheet_name='Subcategory_GMV', index=False)
+            comprehensive_data['Product GMV'].to_excel(writer, sheet_name='Product_GMV', index=False)
 
         with open(output_file, "rb") as file:
             st.download_button(
