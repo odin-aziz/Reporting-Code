@@ -5,7 +5,7 @@ from datetime import datetime
 # --- Helper Functions ---
 
 def calculate_GMV(df, group_by_columns, sum_column='GMV'):
-    """General function to calculate GMV per group with euro formatting, without IDs."""
+    """Calculates GMV by grouping specified columns."""
     try:
         gmv = df.groupby(group_by_columns)[sum_column].sum().reset_index()
         gmv = gmv.rename(columns={sum_column: 'Total GMV (€)'})
@@ -16,10 +16,34 @@ def calculate_GMV(df, group_by_columns, sum_column='GMV'):
         print(f"Missing column for GMV calculation: {e}")
         return pd.DataFrame()
 
-# Extract all metrics functions
-def extract_unique_values(df, column_name):
-    """Helper function to extract unique values for metrics."""
-    return pd.DataFrame(df[column_name].unique(), columns=[column_name])
+def get_region_hierarchy(df):
+    """Organizes the data into hierarchical GMV tables by region, subcategory, supplier, and restaurant."""
+    regions = df['region'].unique()
+    region_data = {}
+    
+    for region in regions:
+        region_df = df[df['region'] == region]
+        
+        # Overall GMV for the region
+        total_gmv = region_df['GMV'].sum()
+        
+        # GMV by Subcategory within Region
+        subcategory_gmv = calculate_GMV(region_df, ['sub_cat'])
+        
+        # GMV by Supplier within Region
+        supplier_gmv = calculate_GMV(region_df, ['Supplier'])
+        
+        # GMV by Restaurant within Region
+        restaurant_gmv = calculate_GMV(region_df, ['Restaurant_name'])
+        
+        # Store the data
+        region_data[region] = {
+            "Total GMV": f"{total_gmv:,.0f} €",
+            "Subcategory GMV": subcategory_gmv,
+            "Supplier GMV": supplier_gmv,
+            "Restaurant GMV": restaurant_gmv
+        }
+    return region_data
 
 # --- Main Streamlit App ---
 
@@ -38,47 +62,31 @@ if uploaded_file:
     st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
     st.metric("Total Orders", df['order_id'].nunique())
     
-    top_suppliers = calculate_GMV(df, ['Supplier'])
-    st.write("Top 5 Suppliers by GMV")
-    st.write(top_suppliers.head(5))
+    # Section 2: Region-based Analysis with Hierarchical GMV Tables
+    st.subheader("Detailed GMV Analysis by Region")
 
-    # Section 2: Supplier GMV Tables
-    st.subheader("Supplier GMV Analysis")
-    supplier_GMV = calculate_GMV(df, ['Supplier'])
-    st.write("Supplier GMV")
-    st.write(supplier_GMV)
-    
-    # Supplier GMV per Region
-    supplier_region_GMV = calculate_GMV(df, ['region', 'Supplier'])
-    st.write("Supplier GMV per Region")
-    st.write(supplier_region_GMV)
+    region_hierarchy_data = get_region_hierarchy(df)
 
-    # Section 3: Subcategory GMV Tables
-    st.subheader("Subcategory GMV Analysis")
-    subcategory_GMV = calculate_GMV(df, ['sub_cat'])
-    st.write("Subcategory GMV")
-    st.write(subcategory_GMV)
+    # Display hierarchical tables for each region
+    for region, data in region_hierarchy_data.items():
+        st.write(f"### {region} - Total GMV: {data['Total GMV']}")
 
-    # Subcategory GMV per Supplier
-    subcategory_supplier_GMV = calculate_GMV(df, ['Supplier', 'sub_cat'])
-    st.write("Subcategory GMV per Supplier")
-    st.write(subcategory_supplier_GMV)
+        st.write("#### Subcategory GMV")
+        st.write(data['Subcategory GMV'])
 
-    # Subcategory GMV per Region
-    subcategory_region_GMV = calculate_GMV(df, ['region', 'sub_cat'])
-    st.write("Subcategory GMV per Region")
-    st.write(subcategory_region_GMV)
+        st.write("#### Supplier GMV")
+        st.write(data['Supplier GMV'])
 
-    # Section 4: Restaurant GMV by Region Tables
-    st.subheader("Restaurant GMV by Region")
-    restaurant_region_GMV = calculate_GMV(df, ['region', 'Restaurant_name'])
-    st.write("Restaurant GMV by Region")
-    st.write(restaurant_region_GMV)
+        st.write("#### Restaurant GMV")
+        st.write(data['Restaurant GMV'])
 
-    # Section 5: Comprehensive Data Extraction Tables
-    st.subheader("Comprehensive Data by Key Metrics")
+    # Section 3: Comprehensive Data Extraction
+    st.subheader("Comprehensive Data Extraction")
 
-    # Extract and Display Metrics for Suppliers, Regions, Subcategories, Products, and Restaurants
+    def extract_unique_values(df, column_name):
+        """Extracts unique values for given column in DataFrame."""
+        return pd.DataFrame(df[column_name].unique(), columns=[column_name])
+
     st.write("Unique Suppliers")
     st.write(extract_unique_values(df, 'Supplier'))
 
@@ -91,26 +99,21 @@ if uploaded_file:
     st.write("Unique Products")
     st.write(extract_unique_values(df, 'product_name'))
 
-    st.write("Unique Restaurants per Region")
-    restaurants_per_region = df.groupby('region')['Restaurant_name'].unique().reset_index()
-    restaurants_per_region = restaurants_per_region.rename(columns={'Restaurant_name': 'Restaurants'})
-    st.write(restaurants_per_region)
-
     # Download Report Button
     if st.sidebar.button("Download Report"):
         output_file = f"summary_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
         with pd.ExcelWriter(output_file) as writer:
-            supplier_GMV.to_excel(writer, sheet_name='Supplier_GMV', index=False)
-            supplier_region_GMV.to_excel(writer, sheet_name='Supplier_Region_GMV', index=False)
-            subcategory_GMV.to_excel(writer, sheet_name='Subcategory_GMV', index=False)
-            subcategory_supplier_GMV.to_excel(writer, sheet_name='Subcategory_Supplier_GMV', index=False)
-            subcategory_region_GMV.to_excel(writer, sheet_name='Subcategory_Region_GMV', index=False)
-            restaurant_region_GMV.to_excel(writer, sheet_name='Restaurant_Region_GMV', index=False)
+            # Write hierarchical GMV data by region to Excel sheets
+            for region, data in region_hierarchy_data.items():
+                data['Subcategory GMV'].to_excel(writer, sheet_name=f'{region}_Subcategory_GMV', index=False)
+                data['Supplier GMV'].to_excel(writer, sheet_name=f'{region}_Supplier_GMV', index=False)
+                data['Restaurant GMV'].to_excel(writer, sheet_name=f'{region}_Restaurant_GMV', index=False)
+        
+            # Write unique value extracts
             extract_unique_values(df, 'Supplier').to_excel(writer, sheet_name='Unique_Suppliers', index=False)
             extract_unique_values(df, 'region').to_excel(writer, sheet_name='Unique_Regions', index=False)
             extract_unique_values(df, 'sub_cat').to_excel(writer, sheet_name='Unique_Subcategories', index=False)
             extract_unique_values(df, 'product_name').to_excel(writer, sheet_name='Unique_Products', index=False)
-            restaurants_per_region.to_excel(writer, sheet_name='Restaurants_Per_Region', index=False)
 
         with open(output_file, "rb") as file:
             st.download_button(
