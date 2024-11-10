@@ -56,15 +56,15 @@ uploaded_file = st.file_uploader("Upload weekly data file", type="xlsx")
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Section 1: Summary Tab
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    # Sidebar for Navigation
+    st.sidebar.title("Navigation")
+    section = st.sidebar.radio("Select Section", [
         "Summary", "Region Analysis", "Supplier Analysis", "Subcategory Analysis", "Detailed GMV Analysis"
     ])
 
-    # Tab 1: Summary
-    with tab1:
+    # Display content based on selected section
+    if section == "Summary":
         st.subheader("📊 Summary of Key Metrics")
-        # Organize metrics into columns
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
@@ -77,8 +77,7 @@ if uploaded_file:
         with col4:
             st.metric("Total Tax Amount", f"{df['tax_amount'].sum():,.2f}")
 
-    # Tab 2: Region Analysis
-    with tab2:
+    elif section == "Region Analysis":
         st.subheader("📍 Region-Based GMV Analysis")
         region_hierarchy_data = get_region_hierarchy(df)
         
@@ -91,20 +90,17 @@ if uploaded_file:
             st.write("#### GMV by Restaurant")
             st.dataframe(data['Restaurant GMV'], use_container_width=True)
 
-    # Tab 3: Supplier Analysis
-    with tab3:
+    elif section == "Supplier Analysis":
         st.subheader("🏢 Supplier GMV Analysis")
         supplier_gmv = calculate_GMV(df, ['Supplier'])
         st.dataframe(supplier_gmv, use_container_width=True)
 
-    # Tab 4: Subcategory Analysis
-    with tab4:
+    elif section == "Subcategory Analysis":
         st.subheader("📦 Subcategory GMV Analysis")
         subcategory_gmv = calculate_GMV(df, ['sub_cat'])
         st.dataframe(subcategory_gmv, use_container_width=True)
 
-    # Tab 5: Detailed GMV Analysis
-    with tab5:
+    elif section == "Detailed GMV Analysis":
         st.subheader("🔍 Comprehensive GMV Analysis by Supplier, Region, Subcategory, and Product")
         comprehensive_data = get_comprehensive_GMV(df)
 
@@ -120,7 +116,8 @@ if uploaded_file:
         st.write("#### Product GMV")
         st.dataframe(comprehensive_data['Product GMV'], use_container_width=True)
 
-    # Download Report Button
+    # Download Report Button in Sidebar
+    st.sidebar.title("Export")
     if st.sidebar.button("Download Report"):
         output_file = f"summary_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
         with pd.ExcelWriter(output_file) as writer:
@@ -135,7 +132,7 @@ if uploaded_file:
             comprehensive_data['Product GMV'].to_excel(writer, sheet_name='Product_GMV', index=False)
 
         with open(output_file, "rb") as file:
-            st.download_button(
+            st.sidebar.download_button(
                 label="Download Excel Report",
                 data=file,
                 file_name=output_file,
