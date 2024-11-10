@@ -16,7 +16,11 @@ def calculate_GMV(df, group_by_columns, sum_column='GMV'):
         # Round to integers after filling NaNs
         gmv['Total GMV (€)'] = gmv['Total GMV (€)'].round(0).astype(int)
         
-        return gmv.sort_values(by='Total GMV (€)', ascending=False).drop(columns=['variant_id', 'Restaurant_id'])
+        # Drop variant_id and Restaurant_id if they exist in the dataframe
+        columns_to_drop = ['variant_id', 'Restaurant_id']
+        gmv = gmv.drop(columns=[col for col in columns_to_drop if col in gmv.columns], errors='ignore')
+        
+        return gmv.sort_values(by='Total GMV (€)', ascending=False)
     except KeyError as e:
         st.warning(f"Missing column for GMV calculation: {e}")
         return pd.DataFrame()
