@@ -1,14 +1,11 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime
-import plotly.express as px
 
 # --- Helper Functions ---
 
 def calculate_GMV(df, group_by_columns, sum_column='GMV'):
-    """General function to calculate GMV per group with euro formatting."""
+    """General function to calculate GMV per group with euro formatting, without IDs."""
     try:
         gmv = df.groupby(group_by_columns)[sum_column].sum().reset_index()
         gmv = gmv.rename(columns={sum_column: 'Total GMV (€)'})
@@ -19,24 +16,10 @@ def calculate_GMV(df, group_by_columns, sum_column='GMV'):
         print(f"Missing column for GMV calculation: {e}")
         return pd.DataFrame()
 
-def plot_treemap(data, path, values, title):
-    """Treemap for representing proportions."""
-    fig = px.treemap(data, path=path, values=values, title=title)
-    st.plotly_chart(fig)
-
-def plot_stacked_bar(data, x, y, hue, title, xlabel, ylabel):
-    """Stacked bar chart for GMV breakdown."""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=x, y=y, hue=hue, data=data, ax=ax, palette="coolwarm")
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    st.pyplot(fig)
-
-def plot_bubble_chart(data, x, y, size, color, title):
-    """Bubble chart for representing restaurant GMV by region."""
-    fig = px.scatter(data, x=x, y=y, size=size, color=color, hover_name=x, title=title)
-    st.plotly_chart(fig)
+# Extract all metrics functions
+def extract_unique_values(df, column_name):
+    """Helper function to extract unique values for metrics."""
+    return pd.DataFrame(df[column_name].unique(), columns=[column_name])
 
 # --- Main Streamlit App ---
 
@@ -50,7 +33,7 @@ uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Section 1: Summary Dashboard
+    # Section 1: High-Level Summary
     st.subheader("High-Level Summary of Key Metrics")
     st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
     st.metric("Total Orders", df['order_id'].nunique())
@@ -59,41 +42,75 @@ if uploaded_file:
     st.write("Top 5 Suppliers by GMV")
     st.write(top_suppliers.head(5))
 
-    # Option to view details for Supplier GMV
-    if st.button("View Supplier GMV Details"):
-        st.session_state.view_supplier_gmv = True
+    # Section 2: Supplier GMV Tables
+    st.subheader("Supplier GMV Analysis")
+    supplier_GMV = calculate_GMV(df, ['Supplier'])
+    st.write("Supplier GMV")
+    st.write(supplier_GMV)
+    
+    # Supplier GMV per Region
+    supplier_region_GMV = calculate_GMV(df, ['region', 'Supplier'])
+    st.write("Supplier GMV per Region")
+    st.write(supplier_region_GMV)
 
-    # Section 2: Supplier GMV Analysis
-    if 'view_supplier_gmv' in st.session_state:
-        st.subheader("Supplier GMV Analysis")
+    # Section 3: Subcategory GMV Tables
+    st.subheader("Subcategory GMV Analysis")
+    subcategory_GMV = calculate_GMV(df, ['sub_cat'])
+    st.write("Subcategory GMV")
+    st.write(subcategory_GMV)
 
-        supplier_GMV = calculate_GMV(df, ['Supplier'])
-        plot_treemap(supplier_GMV, path=['Supplier'], values='Total GMV (€)', title="Supplier GMV Treemap")
+    # Subcategory GMV per Supplier
+    subcategory_supplier_GMV = calculate_GMV(df, ['Supplier', 'sub_cat'])
+    st.write("Subcategory GMV per Supplier")
+    st.write(subcategory_supplier_GMV)
 
-        supplier_region_GMV = calculate_GMV(df, ['region', 'Supplier'])
-        plot_stacked_bar(supplier_region_GMV, 'region', 'Total GMV (€)', 'Supplier', "Supplier GMV by Region", "Region", "Total GMV (€)")
+    # Subcategory GMV per Region
+    subcategory_region_GMV = calculate_GMV(df, ['region', 'sub_cat'])
+    st.write("Subcategory GMV per Region")
+    st.write(subcategory_region_GMV)
 
-    # Section 3: Subcategory GMV Analysis
-    if st.sidebar.checkbox("Subcategory GMV Analysis"):
-        st.subheader("Subcategory GMV Analysis")
+    # Section 4: Restaurant GMV by Region Tables
+    st.subheader("Restaurant GMV by Region")
+    restaurant_region_GMV = calculate_GMV(df, ['region', 'Restaurant_name'])
+    st.write("Restaurant GMV by Region")
+    st.write(restaurant_region_GMV)
 
-        subcategory_GMV = calculate_GMV(df, ['sub_cat'])
-        plot_stacked_bar(subcategory_GMV, 'sub_cat', 'Total GMV (€)', 'sub_cat', "Subcategory GMV", "Subcategory", "Total GMV (€)")
+    # Section 5: Comprehensive Data Extraction Tables
+    st.subheader("Comprehensive Data by Key Metrics")
 
-    # Section 4: Restaurant GMV by Region
-    if st.sidebar.checkbox("Restaurant GMV by Region"):
-        st.subheader("Restaurant GMV by Region")
+    # Extract and Display Metrics for Suppliers, Regions, Subcategories, Products, and Restaurants
+    st.write("Unique Suppliers")
+    st.write(extract_unique_values(df, 'Supplier'))
 
-        restaurant_region_GMV = calculate_GMV(df, ['region', 'Restaurant_name'])
-        plot_bubble_chart(restaurant_region_GMV, 'Restaurant_name', 'region', 'Total GMV (€)', 'region', "Restaurant GMV by Region")
+    st.write("Unique Regions")
+    st.write(extract_unique_values(df, 'region'))
 
-    # Download Report button
+    st.write("Unique Subcategories")
+    st.write(extract_unique_values(df, 'sub_cat'))
+
+    st.write("Unique Products")
+    st.write(extract_unique_values(df, 'product_name'))
+
+    st.write("Unique Restaurants per Region")
+    restaurants_per_region = df.groupby('region')['Restaurant_name'].unique().reset_index()
+    restaurants_per_region = restaurants_per_region.rename(columns={'Restaurant_name': 'Restaurants'})
+    st.write(restaurants_per_region)
+
+    # Download Report Button
     if st.sidebar.button("Download Report"):
         output_file = f"summary_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
         with pd.ExcelWriter(output_file) as writer:
-            top_suppliers.to_excel(writer, sheet_name='Top_Suppliers', index=False)
+            supplier_GMV.to_excel(writer, sheet_name='Supplier_GMV', index=False)
+            supplier_region_GMV.to_excel(writer, sheet_name='Supplier_Region_GMV', index=False)
             subcategory_GMV.to_excel(writer, sheet_name='Subcategory_GMV', index=False)
-            restaurant_region_GMV.to_excel(writer, sheet_name='Restaurant_GMV_Region', index=False)
+            subcategory_supplier_GMV.to_excel(writer, sheet_name='Subcategory_Supplier_GMV', index=False)
+            subcategory_region_GMV.to_excel(writer, sheet_name='Subcategory_Region_GMV', index=False)
+            restaurant_region_GMV.to_excel(writer, sheet_name='Restaurant_Region_GMV', index=False)
+            extract_unique_values(df, 'Supplier').to_excel(writer, sheet_name='Unique_Suppliers', index=False)
+            extract_unique_values(df, 'region').to_excel(writer, sheet_name='Unique_Regions', index=False)
+            extract_unique_values(df, 'sub_cat').to_excel(writer, sheet_name='Unique_Subcategories', index=False)
+            extract_unique_values(df, 'product_name').to_excel(writer, sheet_name='Unique_Products', index=False)
+            restaurants_per_region.to_excel(writer, sheet_name='Restaurants_Per_Region', index=False)
 
         with open(output_file, "rb") as file:
             st.download_button(
