@@ -5,11 +5,18 @@ from datetime import datetime
 # --- Helper Functions ---
 
 def calculate_GMV(df, group_by_columns, sum_column='GMV'):
-    """Calculates GMV by grouping specified columns."""
+    """Calculates GMV by grouping specified columns, handling NaNs and ensuring numeric data type."""
     try:
         gmv = df.groupby(group_by_columns)[sum_column].sum().reset_index()
-        gmv = gmv.rename(columns={sum_column: 'Total GMV (€)'}).sort_values(by='Total GMV (€)', ascending=False)
-        return gmv.round(0).astype(int)
+        gmv = gmv.rename(columns={sum_column: 'Total GMV (€)'})
+        
+        # Ensure 'Total GMV (€)' is numeric and fill NaN values
+        gmv['Total GMV (€)'] = pd.to_numeric(gmv['Total GMV (€)'], errors='coerce').fillna(0)
+        
+        # Round to integers after filling NaNs
+        gmv['Total GMV (€)'] = gmv['Total GMV (€)'].round(0).astype(int)
+        
+        return gmv.sort_values(by='Total GMV (€)', ascending=False)
     except KeyError as e:
         st.warning(f"Missing column for GMV calculation: {e}")
         return pd.DataFrame()
@@ -56,55 +63,62 @@ if uploaded_file:
 
     # Tab 1: Summary
     with tab1:
-        st.subheader("Summary of Key Metrics")
-        st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
-        st.metric("Total Quantity", f"{df['quantity_float'].sum():,.0f}")
-        st.metric("Total Weight", f"{df['Weight'].sum():,.2f}")
-        st.metric("Total Purchase Price", f"{df['purchase price'].sum():,.2f}")
-        st.metric("Total Tax Amount", f"{df['tax_amount'].sum():,.2f}")
+        st.subheader("📊 Summary of Key Metrics")
+        # Organize metrics into columns
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total GMV (€)", f"{df['GMV'].sum():,.0f} €")
+        with col2:
+            st.metric("Total Weight", f"{df['Weight'].sum():,.2f}")
+        with col3:
+            st.metric("Total Purchase Price", f"{df['purchase price'].sum():,.2f}")
+        
+        col4, col5 = st.columns(2)
+        with col4:
+            st.metric("Total Tax Amount", f"{df['tax_amount'].sum():,.2f}")
 
     # Tab 2: Region Analysis
     with tab2:
-        st.subheader("Detailed GMV by Region")
+        st.subheader("📍 Region-Based GMV Analysis")
         region_hierarchy_data = get_region_hierarchy(df)
         
         for region, data in region_hierarchy_data.items():
             st.write(f"### {region} - Total GMV: {data['Total GMV']}")
             st.write("#### GMV by Subcategory")
-            st.write(data['Subcategory GMV'])
+            st.dataframe(data['Subcategory GMV'], use_container_width=True)
             st.write("#### GMV by Supplier")
-            st.write(data['Supplier GMV'])
+            st.dataframe(data['Supplier GMV'], use_container_width=True)
             st.write("#### GMV by Restaurant")
-            st.write(data['Restaurant GMV'])
+            st.dataframe(data['Restaurant GMV'], use_container_width=True)
 
     # Tab 3: Supplier Analysis
     with tab3:
-        st.subheader("Supplier GMV Analysis")
+        st.subheader("🏢 Supplier GMV Analysis")
         supplier_gmv = calculate_GMV(df, ['Supplier'])
-        st.write(supplier_gmv)
+        st.dataframe(supplier_gmv, use_container_width=True)
 
     # Tab 4: Subcategory Analysis
     with tab4:
-        st.subheader("Subcategory GMV Analysis")
+        st.subheader("📦 Subcategory GMV Analysis")
         subcategory_gmv = calculate_GMV(df, ['sub_cat'])
-        st.write(subcategory_gmv)
+        st.dataframe(subcategory_gmv, use_container_width=True)
 
     # Tab 5: Detailed GMV Analysis
     with tab5:
-        st.subheader("Comprehensive GMV Analysis")
+        st.subheader("🔍 Comprehensive GMV Analysis by Supplier, Region, Subcategory, and Product")
         comprehensive_data = get_comprehensive_GMV(df)
 
         st.write("#### Supplier GMV")
-        st.write(comprehensive_data['Supplier GMV'])
+        st.dataframe(comprehensive_data['Supplier GMV'], use_container_width=True)
         
         st.write("#### Region GMV")
-        st.write(comprehensive_data['Region GMV'])
+        st.dataframe(comprehensive_data['Region GMV'], use_container_width=True)
         
         st.write("#### Subcategory GMV")
-        st.write(comprehensive_data['Subcategory GMV'])
+        st.dataframe(comprehensive_data['Subcategory GMV'], use_container_width=True)
         
         st.write("#### Product GMV")
-        st.write(comprehensive_data['Product GMV'])
+        st.dataframe(comprehensive_data['Product GMV'], use_container_width=True)
 
     # Download Report Button
     if st.sidebar.button("Download Report"):
