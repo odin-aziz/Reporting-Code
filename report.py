@@ -7,13 +7,16 @@ from datetime import datetime
 def calculate_GMV(df, group_by_columns, sum_column='GMV'):
     """Calculates GMV by grouping specified columns."""
     try:
+        if sum_column not in df.columns:
+            raise KeyError(f"Missing column for GMV calculation: {sum_column}")
+        
         gmv = df.groupby(group_by_columns)[sum_column].sum().reset_index()
         gmv = gmv.rename(columns={sum_column: 'Total GMV (€)'})
         gmv['Total GMV (€)'] = gmv['Total GMV (€)'].round(0).astype(int)
         gmv = gmv.sort_values(by='Total GMV (€)', ascending=False)
         return gmv
     except KeyError as e:
-        print(f"Missing column for GMV calculation: {e}")
+        st.error(f"Error: {e}")
         return pd.DataFrame()
 
 def compare_metrics(df_week1, df_week2, group_by_columns, sum_column='GMV'):
@@ -45,7 +48,7 @@ def get_region_hierarchy(df):
         region_df = df[df['region'] == region]
         
         # Overall GMV for the region
-        total_gmv = region_df['GMV'].sum()
+        total_gmv = region_df['GMV'].sum() if 'GMV' in region_df.columns else 0
         
         # GMV by Subcategory within Region
         subcategory_gmv = calculate_GMV(region_df, ['sub_cat'])
@@ -77,24 +80,51 @@ if uploaded_file_week1 and uploaded_file_week2:
     df_week1 = pd.read_excel(uploaded_file_week1)
     df_week2 = pd.read_excel(uploaded_file_week2)
 
-    # Section 1: Dashboard Overview in Sidebar
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Dashboard", "Region-Based Analysis", "Supplier GMV", "Subcategory GMV", "Comprehensive GMV"])
+    # --- Section 1: Dashboard Overview in Sidebar ---
+    tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Region-Based Analysis", "Supplier GMV", "Subcategory GMV"])
 
-    # Tab 1: High-Level Summary Dashboard
+    # --- Tab 1: High-Level Summary Dashboard ---
     with tab1:
         st.subheader("High-Level Summary")
-        st.metric("Total GMV Week 1 (€)", f"{df_week1['GMV'].sum():,.0f} €")
-        st.metric("Total GMV Week 2 (€)", f"{df_week2['GMV'].sum():,.0f} €")
+        
+        # Total GMV for both weeks
+        gmvs_week1 = df_week1['GMV'].sum() if 'GMV' in df_week1.columns else 0
+        gmvs_week2 = df_week2['GMV'].sum() if 'GMV' in df_week2.columns else 0
+        st.metric("Total GMV Week 1 (€)", f"{gmvs_week1:,.0f} €")
+        st.metric("Total GMV Week 2 (€)", f"{gmvs_week2:,.0f} €")
         
         # GMV comparison for the dashboard
         comparison = compare_metrics(df_week1, df_week2, ['region'])
         st.write("### GMV Comparison by Region")
         st.write(comparison)
 
-    # Tab 2: Region-Based Analysis with Hierarchical GMV Tables
+        # Region-based GMV comparison directly in the dashboard
+        st.write("### GMV Comparison by Region")
+        region_hierarchy_data_week1 = get_region_hierarchy(df_week1)
+        region_hierarchy_data_week2 = get_region_hierarchy(df_week2)
+        
+        for region in region_hierarchy_data_week1:
+            st.write(f"#### {region}")
+            st.write(f"**Week 1 GMV:** {region_hierarchy_data_week1[region]['Total GMV']} | **Week 2 GMV:** {region_hierarchy_data_week2[region]['Total GMV']}")
+            
+            # Compare Subcategory GMVs
+            st.write("#### Subcategory GMV Comparison")
+            st.write(compare_metrics(region_hierarchy_data_week1[region]['Subcategory GMV'], 
+                                     region_hierarchy_data_week2[region]['Subcategory GMV'], ['sub_cat']))
+
+            # Compare Supplier GMVs
+            st.write("#### Supplier GMV Comparison")
+            st.write(compare_metrics(region_hierarchy_data_week1[region]['Supplier GMV'], 
+                                     region_hierarchy_data_week2[region]['Supplier GMV'], ['Supplier']))
+
+            # Compare Restaurant GMVs
+            st.write("#### Restaurant GMV Comparison")
+            st.write(compare_metrics(region_hierarchy_data_week1[region]['Restaurant GMV'], 
+                                     region_hierarchy_data_week2[region]['Restaurant GMV'], ['Restaurant_name']))
+
+    # --- Tab 2: Region-Based Analysis ---
     with tab2:
         st.subheader("Detailed GMV Analysis by Region")
-        
         region_hierarchy_data_week1 = get_region_hierarchy(df_week1)
         region_hierarchy_data_week2 = get_region_hierarchy(df_week2)
         
@@ -111,7 +141,7 @@ if uploaded_file_week1 and uploaded_file_week2:
             st.write(compare_metrics(region_hierarchy_data_week1[region]['Restaurant GMV'], 
                                      region_hierarchy_data_week2[region]['Restaurant GMV'], ['Restaurant_name']))
 
-    # Tab 3: Supplier GMV Analysis
+    # --- Tab 3: Supplier GMV Analysis ---
     with tab3:
         st.subheader("Supplier GMV Analysis")
         supplier_gmv_week1 = calculate_GMV(df_week1, ['Supplier'])
@@ -119,7 +149,7 @@ if uploaded_file_week1 and uploaded_file_week2:
         comparison_supplier = compare_metrics(supplier_gmv_week1, supplier_gmv_week2, ['Supplier'])
         st.write(comparison_supplier)
 
-    # Tab 4: Subcategory GMV Analysis
+    # --- Tab 4: Subcategory GMV Analysis ---
     with tab4:
         st.subheader("Subcategory GMV Analysis")
         subcategory_gmv_week1 = calculate_GMV(df_week1, ['sub_cat'])
@@ -127,35 +157,14 @@ if uploaded_file_week1 and uploaded_file_week2:
         comparison_subcategory = compare_metrics(subcategory_gmv_week1, subcategory_gmv_week2, ['sub_cat'])
         st.write(comparison_subcategory)
 
-    # Tab 5: Comprehensive GMV Analysis (Suppliers, Regions, Subcategories, Products)
-    with tab5:
-        st.subheader("Comprehensive GMV Analysis by Supplier, Region, Subcategory, and Product")
-        comprehensive_data_week1 = get_comprehensive_GMV(df_week1)
-        comprehensive_data_week2 = get_comprehensive_GMV(df_week2)
-
-        st.write("#### Supplier GMV Comparison")
-        st.write(compare_metrics(comprehensive_data_week1['Supplier GMV'], comprehensive_data_week2['Supplier GMV'], ['Supplier']))
-        
-        st.write("#### Region GMV Comparison")
-        st.write(compare_metrics(comprehensive_data_week1['Region GMV'], comprehensive_data_week2['Region GMV'], ['region']))
-        
-        st.write("#### Subcategory GMV Comparison")
-        st.write(compare_metrics(comprehensive_data_week1['Subcategory GMV'], comprehensive_data_week2['Subcategory GMV'], ['sub_cat']))
-        
-        st.write("#### Product GMV Comparison")
-        st.write(compare_metrics(comprehensive_data_week1['Product GMV'], comprehensive_data_week2['Product GMV'], ['product_name']))
-
     # Download Report Button in Sidebar
     if st.sidebar.button("Download Report"):
         output_file = f"summary_comparison_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
         with pd.ExcelWriter(output_file) as writer:
-            # Write comparison data for each section to Excel
-            comparison.to_excel(writer, sheet_name='GMV_Comparison', index=False)
-        
-        with open(output_file, "rb") as file:
-            st.download_button(
-                label="Download Excel Report",
-                data=file,
-                file_name=output_file,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            comparison.to_excel(writer, sheet_name="GMV Comparison by Region")
+            region_hierarchy_data_week1.to_excel(writer, sheet_name="Region Data Week 1")
+            region_hierarchy_data_week2.to_excel(writer, sheet_name="Region Data Week 2")
+        st.download_button("Download Report", output_file, file_name=output_file, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+else:
+    st.warning("Please upload both week files.")
