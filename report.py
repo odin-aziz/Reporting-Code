@@ -135,11 +135,16 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
         restaurants_this_week_not_last_week = restaurants_this_week_not_last_week[['Restaurant_name', 'region', 'GMV']]
         restaurants_this_week_not_last_week = restaurants_this_week_not_last_week.groupby(['Restaurant_name', 'region']).sum().reset_index()
 
-        # Display both tables
-        st.subheader("Did NOT Reorder")
+        count_not_reordered = restaurants_last_week_not_this_week['Restaurant_name'].nunique()
+        total_gmv_not_reordered = restaurants_last_week_not_this_week['GMV'].sum()
+        count_new_winback = restaurants_this_week_not_last_week['Restaurant_name'].nunique()
+        total_gmv_new_winback = restaurants_this_week_not_last_week['GMV'].sum()
+
+
+        st.subheader(f"Did NOT Reorder (Count: {count_not_reordered}, Total GMV: {total_gmv_not_reordered})")
         st.write(restaurants_last_week_not_this_week)
 
-        st.subheader("New/Winback/Biweekly")
+        st.subheader(f"New/Winback/Biweekly (Count: {count_new_winback}, Total GMV: {total_gmv_new_winback})")
         st.write(restaurants_this_week_not_last_week)
 
   # Revenue by Region and Subcategory (Heatmap)
