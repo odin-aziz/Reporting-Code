@@ -178,7 +178,6 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
         st.metric("Orders per Customer (Last Week)", f"{orders_last_week:.0f}")
         st.metric("Orders per Customer (This Week)", f"{orders_this_week:.0f}")
 
-    # Time of Day/Week Analysis (by Day)
     if "Daily Analysis" in sections:
         st.subheader("Daily Analysis")
         
