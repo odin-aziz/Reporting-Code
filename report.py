@@ -181,7 +181,6 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
     if "Daily Analysis" in sections:
         st.subheader("Daily Analysis")
         
-        # Convert 'Date' column to datetime format (assuming 'Date' exists in the dataset)
         df_Last_Week['order_datetime'] = pd.to_datetime(df_Last_Week['Date'], format="%d/%m/%Y %H:%M:%S")
         df_This_Week['order_datetime'] = pd.to_datetime(df_This_Week['Date'], format="%d/%m/%Y %H:%M:%S")
         
