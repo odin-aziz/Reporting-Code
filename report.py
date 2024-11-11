@@ -136,9 +136,9 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
         restaurants_this_week_not_last_week = restaurants_this_week_not_last_week.groupby(['Restaurant_name', 'region']).sum().reset_index()
 
         count_not_reordered = restaurants_last_week_not_this_week['Restaurant_name'].nunique()
-        total_gmv_not_reordered = restaurants_last_week_not_this_week['GMV'].sum().round(0)
+        total_gmv_not_reordered = restaurants_last_week_not_this_week['GMV'].sum().round(0).astype({'GMV': int})
         count_new_winback = restaurants_this_week_not_last_week['Restaurant_name'].nunique()
-        total_gmv_new_winback = restaurants_this_week_not_last_week['GMV'].sum().round(0)
+        total_gmv_new_winback = restaurants_this_week_not_last_week['GMV'].sum().round(0).astype({'GMV': int})
 
 
         st.subheader(f"Did NOT Reorder (Count: {count_not_reordered}, Total GMV: {total_gmv_not_reordered})")
