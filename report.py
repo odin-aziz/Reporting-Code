@@ -6,7 +6,6 @@ from io import BytesIO
 import numpy as np
 from datetime import datetime, timedelta
 import altair as alt
-from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
 
 def create_weekly_order_tracking(data, agg_func='sum', show_plots=True, week_start='Monday'):
