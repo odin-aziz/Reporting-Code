@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import altair as alt
 from sklearn.ensemble import RandomForestClassifier
+import plotly.express as px
 
 def create_weekly_order_tracking(data, agg_func='sum', show_plots=True, week_start='Monday'):
     """
@@ -52,54 +53,6 @@ def create_weekly_order_tracking(data, agg_func='sum', show_plots=True, week_sta
     weekly_tracking.reset_index(inplace=True)
        
     return weekly_tracking
-
-   
-def extract_customer_segments_with_gmv(weekly_tracking, churn_threshold=4, winback_threshold=4):
-    churned = []
-    reactivated = []
-    winback = []
-    
-    # Loop through each restaurant (customer)
-    for idx, row in weekly_tracking.iterrows():
-        gmv_values = row[1:-2].values  # Extract the GMV data (excluding the restaurant name, Region, and Suppliers columns)
-        restaurant_name = row['Restaurant']
-        region = row['Region']  # Now region is available
-        supplier = row['Canal']  # Now supplier info is available
-        total_gmv = gmv_values.sum()  # Total GMV for the restaurant
-        
-        # Find the week of first and last order
-        first_order_week = next((week for i, week in enumerate(gmv_values) if week > 0), None)
-        last_order_week = next((week for i, week in reversed(list(enumerate(gmv_values))) if week > 0), None)
-        
-        # If no orders were placed (both first_order_week and last_order_week will be None), skip this customer
-        if first_order_week is None or last_order_week is None:
-            continue
-        
-        # Format the weeks (in Year-Week format)
-        first_order_week = row.index[1 + list(gmv_values).index(first_order_week)]  # Index of the first order week
-        last_order_week = row.index[1 + list(gmv_values).index(last_order_week)]  # Index of the last order week
-        
-        # Check for churn: no GMV > 0 for 'churn_threshold' consecutive weeks
-        if len([week for week in gmv_values[-churn_threshold:] if week > 0]) == 0:
-            churned.append([restaurant_name, total_gmv, first_order_week, last_order_week, region, supplier])
-        
-        # Check for reactivation: GMV > 0 after a period of GMV == 0
-        if any(gmv_values[-(churn_threshold + 1):]) and any(week == 0 for week in gmv_values[-(churn_threshold + 1):-1]):
-            reactivated.append([restaurant_name, total_gmv, first_order_week, last_order_week, region, supplier])
-        
-        # Check for winback: GMV == 0 for 'winback_threshold' weeks, then GMV > 0
-        if len([week for week in gmv_values[-(winback_threshold + 1):-1] if week == 0]) == winback_threshold and gmv_values[-1] > 0:
-            winback.append([restaurant_name, total_gmv, first_order_week, last_order_week, region, supplier])
-    
-    # Convert lists to DataFrames and add Region and Supplier columns
-    churned_df = pd.DataFrame(churned, columns=['Restaurant_name', 'Total_GMV', 'First_Order_Week', 'Last_Order_Week', 'Region', 'Supplier'])
-    reactivated_df = pd.DataFrame(reactivated, columns=['Restaurant_name', 'Total_GMV', 'First_Order_Week', 'Last_Order_Week', 'Region', 'Supplier'])
-    winback_df = pd.DataFrame(winback, columns=['Restaurant_name', 'Total_GMV', 'First_Order_Week', 'Last_Order_Week', 'Region', 'Supplier'])
-    
-    return churned_df, reactivated_df, winback_df
-
-
-
 
 def classify_order_frequency_table(df, date_column='Date de commande', restaurant_column='Restaurant', order_id_column='numero de commande (valide)'):
     # Ensure the date column is in datetime format
@@ -240,6 +193,7 @@ def create_weekly_supplier_gmv(data, agg_func='sum', week_start='Monday'):
 
 
 
+
 def analysis(df_last_week, df_this_week):
     st.title("Business Analysis")
     st.markdown("---")
@@ -260,7 +214,6 @@ def analysis(df_last_week, df_this_week):
         "This Week": [overall_gmv_this, overall_customer_count_this],
         "Growth Rate (%)": [gmv_growth, customer_growth]
     })
-
     st.table(summary_data)
     st.markdown("---")
 
@@ -290,6 +243,9 @@ def analysis(df_last_week, df_this_week):
     st.write(region_comparison)
     st.markdown("---")
 
+
+
+
     # **3. Restaurants GMV Comparison**
     st.header("Restaurants")
     restaurant_gmv_last = df_last_week.groupby("Restaurant_name")["GMV"].sum()
@@ -314,6 +270,7 @@ def analysis(df_last_week, df_this_week):
         (restaurant_gmv_comparison["This Week GMV"] - restaurant_gmv_comparison["Last Week GMV"]) / 
         restaurant_gmv_comparison["Last Week GMV"] * 100
     ).round(2)
+    restaurant_gmv_comparison.fillna(0, inplace=True)
 
     st.write(restaurant_gmv_comparison)
 
@@ -334,6 +291,7 @@ def analysis(df_last_week, df_this_week):
         (suppliers_gmv_comparison["This Week GMV"] - suppliers_gmv_comparison["Last Week GMV"]) / 
         suppliers_gmv_comparison["Last Week GMV"] * 100
     ).round(2)
+    suppliers_gmv_comparison.fillna(0, inplace=True)
 
     st.write(suppliers_gmv_comparison)
     st.markdown("---")
@@ -384,11 +342,13 @@ def analysis(df_last_week, df_this_week):
     ]
     
     # Display the table
+    products_gmv_comparison.fillna(0, inplace=True)
+
     st.write(products_gmv_comparison)
 
 
 
-    st.title("Business Analysis (By Region)")
+    st.title("By Region")
     st.markdown("---")
 
     # Create a dropdown menu to select a region
@@ -403,7 +363,7 @@ def analysis(df_last_week, df_this_week):
     st.markdown("---")
 
     # **Summary Section for the Selected Region**
-    st.subheader(f"Summary of Key Metrics for {selected_region}")
+    st.subheader(f"Key Metrics for {selected_region}")
     regional_gmv_last = df_last_week_region["GMV"].sum()
     regional_gmv_this = df_this_week_region["GMV"].sum()
     regional_customer_count_last = df_last_week_region["Restaurant_id"].nunique()
@@ -418,7 +378,7 @@ def analysis(df_last_week, df_this_week):
         "This Week": [regional_gmv_this, regional_customer_count_this],
         "Growth Rate (%)": [gmv_growth, customer_growth]
     })
-
+    
     st.table(summary_data)
     st.markdown("---")
 
@@ -438,6 +398,7 @@ def analysis(df_last_week, df_this_week):
         (restaurant_customer_comparison["This Week GMV"] - restaurant_customer_comparison["Last Week GMV"]) /
         restaurant_customer_comparison["Last Week GMV"] * 100
     ).round(2)
+    restaurant_customer_comparison.fillna(0, inplace=True)
 
     st.write(restaurant_customer_comparison)
     st.markdown("---")
@@ -457,7 +418,7 @@ def analysis(df_last_week, df_this_week):
         (suppliers_gmv_comparison["This Week GMV"] - suppliers_gmv_comparison["Last Week GMV"]) /
         suppliers_gmv_comparison["Last Week GMV"] * 100
     ).round(2)
-
+    suppliers_gmv_comparison.fillna(0, inplace=True)
     st.write(suppliers_gmv_comparison)
     st.markdown("---")
 
@@ -476,6 +437,7 @@ def analysis(df_last_week, df_this_week):
         (supplier_product_comparison["This Week GMV"] - supplier_product_comparison["Last Week GMV"]) /
         supplier_product_comparison["Last Week GMV"] * 100
     ).round(2)
+    supplier_product_comparison.fillna(0, inplace=True)
 
     st.write(supplier_product_comparison)
     st.markdown("---")
@@ -534,31 +496,6 @@ def analysis(df_last_week, df_this_week):
     st.write(restaurants_not_reordered_by_account)
     st.markdown("---")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     # **5. Subcategory GMV Comparison**
     st.header("Subcategories")
     subcat_gmv_last = df_last_week.groupby("sub_cat")["GMV"].sum()
@@ -576,6 +513,39 @@ def analysis(df_last_week, df_this_week):
 
     st.write(subcat_gmv_comparison)
     st.markdown("---")
+
+    # **New: Number of Restaurants per Catégorie de Cuisine**
+    st.header("Restaurants per Catégorie de Cuisine")
+
+    # Count unique restaurants per cuisine category for last week and this week
+    cuisine_restaurant_last = df_last_week.groupby("Catégorie de cuisine ( NEW )")["Restaurant_id"].nunique()
+    cuisine_restaurant_this = df_this_week.groupby("Catégorie de cuisine ( NEW )")["Restaurant_id"].nunique()
+
+    # Combine both weeks into a comparison dataframe
+    cuisine_restaurant_comparison = pd.concat(
+        [cuisine_restaurant_last, cuisine_restaurant_this],
+        axis=1,
+        keys=["Last Week Restaurants", "This Week Restaurants"]
+    )
+
+    # Calculate the growth rate in restaurant count
+    cuisine_restaurant_comparison["Growth (%)"] = (
+        (cuisine_restaurant_comparison["This Week Restaurants"] - cuisine_restaurant_comparison["Last Week Restaurants"]) /
+        cuisine_restaurant_comparison["Last Week Restaurants"] * 100
+    ).round(2)
+
+    # Replace NaN values with 0
+    cuisine_restaurant_comparison.fillna(0, inplace=True)
+
+    # Display the results
+    st.write(cuisine_restaurant_comparison)
+    st.markdown("---")
+
+
+
+
+
+
 
     # **6. Account Email GMV Comparison**
     st.header("Accounts")
@@ -614,14 +584,240 @@ def analysis(df_last_week, df_this_week):
 
 
 
+# ------------------------------------------------------------------------------------------
 
-# -----------------
+def pricing(df_last_week, df_this_week):
+
+    st.header("Prices")
+
+    # Ensure GMV, Weight, and unit_price are numeric
+    for df in [df_last_week, df_this_week]:
+        df["GMV"] = pd.to_numeric(df["GMV"], errors="coerce")
+        df["Weight"] = pd.to_numeric(df["Weight"], errors="coerce")  # Changed to 'Weight'
+        df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce")
+
+    # Take any row per supplier, product, and variant_id (using .first())
+    products_last_week = df_last_week.groupby(["Supplier", "product_name", "variant_id"], as_index=False).first()
+    products_this_week = df_this_week.groupby(["Supplier", "product_name", "variant_id"], as_index=False).first()
+
+    # Merge the two weeks' data
+    products_comparison = pd.merge(
+        products_last_week[["Supplier", "product_name", "variant_id", "GMV", "Weight", "unit_price"]],  # Keep 'Weight'
+        products_this_week[["Supplier", "product_name", "variant_id", "GMV", "Weight", "unit_price"]],
+        on=["Supplier", "product_name", "variant_id"],
+        how="outer",
+        suffixes=("_Last_Week", "_This_Week")
+    )
+
+    # Rename columns for clarity
+    products_comparison.rename(columns={
+        "GMV_Last_Week": "Last Week GMV",
+        "GMV_This_Week": "This Week GMV",
+        "Weight_Last_Week": "Last Week Weight",  # Changed to 'Weight'
+        "Weight_This_Week": "This Week Weight",
+        "unit_price_Last_Week": "Last Week unit_price",  # Changed to 'unit_price'
+        "unit_price_This_Week": "This Week unit_price"   # Changed to 'unit_price'
+    }, inplace=True)
+
+    products_comparison["This Week Price HT"] = (
+        (products_comparison["This Week unit_price"] / 100) / products_comparison["This Week Weight"]
+    ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+
+    # Calculate Last Week Price TTC (modified)
+    products_comparison["Last Week Price HT"] = (
+        (products_comparison["Last Week unit_price"] / 100) / products_comparison["Last Week Weight"]
+    ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+
+    # Calculate the Difference and Growth between this week and last week
+    products_comparison["Difference"] = (
+        products_comparison["This Week Price HT"] - products_comparison["Last Week Price HT"]
+    ).round(2)
+
+    products_comparison["Growth"] = (
+        (products_comparison["Difference"] / products_comparison["Last Week Price HT"]) * 100
+    ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+
+    # Create the final table with the required columns
+    final_table = products_comparison[[
+        "product_name", "variant_id", "Supplier","Last Week Weight","This Week Weight","This Week unit_price","Last Week unit_price","Last Week Price HT", "This Week Price HT", "Difference", "Growth"
+    ]]
+
+    # Create the final table with the required columns
+    final_table2 = products_comparison[[
+        "product_name", "variant_id", "Supplier","Last Week Price HT", "This Week Price HT", "Difference", "Growth"
+    ]]
+
+    # Display the final table
+    st.write(final_table2)
 
 
 
 
 
+    df_combined = pd.concat([df_last_week, df_this_week])
 
+    supplier_list = df_combined["Supplier"].unique()
+    supplier_filter = st.sidebar.selectbox("Select Supplier", supplier_list)
+
+    # **Step 2: Filtered Products Based on Supplier**
+    filtered_products = df_combined[df_combined["Supplier"] == supplier_filter]["product_name"].unique()
+    product_filter = st.sidebar.selectbox("Select Product", filtered_products)
+
+    # **Step 3: Filtered Variants Based on Product and Supplier**
+    filtered_variants = df_combined[
+        (df_combined["Supplier"] == supplier_filter) & 
+        (df_combined["product_name"] == product_filter)
+    ]["variant_id"].unique()
+    variant_filter = st.sidebar.selectbox("Select Variant ID", filtered_variants)
+
+    # **Apply Filters to Data**
+    filtered_data = df_combined[
+        (df_combined["Supplier"] == supplier_filter) & 
+        (df_combined["product_name"] == product_filter) & 
+        (df_combined["variant_id"] == variant_filter)
+    ]
+    
+
+
+    # Apply filters
+    filtered_data = products_comparison[
+        (products_comparison['Supplier'] == supplier_filter) & 
+        (products_comparison['product_name'] == product_filter) &
+        (products_comparison['variant_id'] == variant_filter)
+    ]
+
+    # Display filtered data
+    filtered_table = filtered_data[["product_name", "variant_id", "Last Week Price HT", "This Week Price HT"]]
+    st.header(f"Price For {product_filter} - {variant_filter}")
+    st.write(filtered_table)
+
+        # Create and display the new table with prices by date
+    st.header("By Date")
+
+    # Combine last week and this week data
+    df_combined = pd.concat([df_last_week, df_this_week])
+
+    # Filter data based on user selection
+    filtered_df = df_combined[
+        (df_combined['Supplier'] == supplier_filter) &
+        (df_combined['product_name'] == product_filter) &
+        (df_combined['variant_id'] == variant_filter)
+    ]
+
+    # Convert Date column to datetime format
+    filtered_df["Date"] = pd.to_datetime(filtered_df["Date"])
+
+    # Sort by Date (ensures last occurrence per day is taken)
+    filtered_df = filtered_df.sort_values(by="Date", ascending=True)
+    # Keep only the last occurrence per day
+    last_transaction_per_day = filtered_df.groupby(filtered_df["Date"].dt.date).tail(1).reset_index()
+
+    last_transaction_per_day["Price HT"] = (
+        (last_transaction_per_day["unit_price"] / 100) / last_transaction_per_day["Weight"]
+    ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+
+    # Calculate price change and trend indicators
+    last_transaction_per_day["Price HT Change"] = last_transaction_per_day["Price HT"].diff().round(2)
+
+    last_transaction_per_day["Trend"] = last_transaction_per_day["Price HT Change"].apply(
+        lambda x: "📈" if x > 0 else ("📉" if x < 0 else "➖")
+    )
+
+    # Display the final table
+    st.write(last_transaction_per_day[["Date", "Price HT", "Price HT Change", "Trend"]])    
+
+    # Filter products_comparison by the selected variant_id
+    filtered_variant_data = products_comparison[products_comparison['variant_id'] == variant_filter]
+
+
+    st.header("Daily GMV and Total Weight for Selected Variant")
+
+    # Combine last week and this week data
+    df_combined = pd.concat([df_last_week, df_this_week])
+
+    # Ensure Date column exists
+    if "Date" not in df_combined.columns:
+        st.error("The Date column is missing from the dataset!")
+    else:
+        # Convert Date column to datetime format
+        df_combined["Date"] = pd.to_datetime(df_combined["Date"])
+
+        # Filter data for the selected variant_id
+        filtered_variant_data = df_combined[df_combined["variant_id"] == variant_filter]
+
+        # Group by Date and sum GMV and total_weight
+        daily_summary = (
+            filtered_variant_data.groupby(filtered_variant_data["Date"].dt.date)
+            .agg({"GMV": "sum", "total_weight": "sum"}).reset_index()
+        )
+
+        # Rename columns for clarity
+        daily_summary.rename(columns={"total_weight": "Total Weight", "Date": "Date"}, inplace=True)
+
+        # Display the table
+        st.write(daily_summary)
+
+
+    # Create and display the GMV summary by Price HT and Date
+    st.header("By Price Point")
+
+    # Ensure Date column exists
+    if "Date" not in df_combined.columns:
+        st.error("The Date column is missing from the dataset!")
+    else:
+        # Convert Date column to datetime format
+        df_combined["Date"] = pd.to_datetime(df_combined["Date"])
+
+        # Filter data for the selected variant_id
+        filtered_variant_data = df_combined[df_combined["variant_id"] == variant_filter]
+
+        # Ensure Price HT is calculated correctly
+        filtered_variant_data["Price HT"] = (
+            (filtered_variant_data["unit_price"] / 100) / filtered_variant_data["Weight"]
+        ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+
+        # Group by Date and Price HT, summing GMV
+        gmv_by_price = (
+            filtered_variant_data.groupby(["Price HT"], as_index=False)
+            .agg({"GMV": "sum","Weight":"sum"})
+        )
+
+        # Display the table
+        st.write(gmv_by_price)
+
+
+
+    st.header("Price Evolution Chart")
+
+    # **Create a Line Chart with Plotly**
+    fig = px.line(
+        last_transaction_per_day, 
+        x="Date", 
+        y="Price HT", 
+        markers=True, 
+        title=f"{product_filter} - {variant_filter}",
+        labels={"Date": "Days", "Price HT": "Price (€)"},
+        line_shape="linear"
+    )
+
+    # **Customize Appearance**
+    fig.update_traces(line=dict(color="green", width=2))
+    fig.update_layout(
+        xaxis_title="Days",
+        yaxis_title="Price (€)",
+        template="plotly_white",
+        hovermode="x",
+    )
+
+    # **Display the Chart in Streamlit**
+    st.plotly_chart(fig)
+
+  
+    # Sample data
+    competitive_table = final_table2[final_table2["product_name"] == product_filter][["variant_id", "Supplier", "This Week Price HT"]]
+    competitive_table = competitive_table[competitive_table["This Week Price HT"] != 0]
+    
+    st.dataframe(competitive_table)
 
 
 
@@ -631,20 +827,21 @@ st.title("Weekly Analysis")
 # File uploader for two weeks
 uploaded_file_Last_Week = st.file_uploader("Last Week", type="xlsx")
 uploaded_file_This_Week = st.file_uploader("This Week", type="xlsx")
-uploaded_file_data = st.file_uploader("Data", type="csv")
-
+uploaded_file_data = st.file_uploader("Prepared Data", type="csv")
 
 if uploaded_file_Last_Week and uploaded_file_This_Week and uploaded_file_data:
     df_Last_Week = pd.read_excel(uploaded_file_Last_Week)
     df_This_Week = pd.read_excel(uploaded_file_This_Week)
     df_data = pd.read_csv(uploaded_file_data)
-
+    # Round GMV column in both datasets to whole numbers (euros)
+    df_Last_Week["GMV"] = df_Last_Week["GMV"].round(0).astype(int)
+    df_This_Week["GMV"] = df_This_Week["GMV"].round(0).astype(int)
 
     # Sidebar Section Selection
     st.sidebar.header("Select Analysis Sections")
     sections = st.sidebar.multiselect(
         "Choose Analysis Sections", 
-        ["Pattern","Analysis"]
+        ["Analysis","Pattern","Pricing"]
     )
 
     if "Pattern" in sections:
@@ -657,23 +854,15 @@ if uploaded_file_Last_Week and uploaded_file_This_Week and uploaded_file_data:
         # Display the tracking table
         st.write("### Weekly Order Tracking Table")
         st.dataframe(weekly_tracking)
-        st.write(churned_customers)
-        classified_data_table = classify_order_frequency_table(df_data)
-        st.subheader('Classification')
-        st.write(classified_data_table)
-    
+        
+   
         
     if "Analysis" in sections:
         analysis(df_Last_Week, df_This_Week)
         
 
-
-
-
-
-
-
-
+    if "Pricing" in sections:
+        pricing(df_Last_Week, df_This_Week)
 
 else:
     st.warning("Please upload data files for both weeks.")
