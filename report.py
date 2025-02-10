@@ -8,193 +8,8 @@ from datetime import datetime, timedelta
 import altair as alt
 import plotly.express as px
 
-def create_weekly_order_tracking(data, agg_func='sum', show_plots=True, week_start='Monday'):
-    """
-    Tracks weekly orders for customers and extracts purchasing patterns.
-    """
-    # Convert dates to datetime format and check validity
-    data['Date de commande'] = pd.to_datetime(data['Date de commande'], dayfirst=True, errors='coerce')
-    
-    if data['Date de commande'].isnull().any():
-        print("Warning: Some rows have invalid date values. These will be excluded.")
-        data = data.dropna(subset=['Date de commande'])
-    
-    # Debugging the date range
-    min_date = data['Date de commande'].min()
-    max_date = data['Date de commande'].max()
-    print(f"Date range in dataset: {min_date} to {max_date}")
-    
-    # Add Year-Week column based on order date
-    data['Year_Week'] = data['Date de commande'].apply(lambda x: f"{x.isocalendar()[0]}-W{x.isocalendar()[1]:02d}")
-    
-    # Create pivot table for weekly tracking using Year_Week
-    weekly_tracking = data.pivot_table(
-        index='Restaurant', 
-        columns='Year_Week',
-        values='GMV_Euro', 
-        aggfunc=agg_func
-    ).fillna(0)
-    
-    # Add total GMV for each restaurant
-    weekly_tracking['Total_GMV'] = weekly_tracking.sum(axis=1)
-    
-    # Optimize supplier and region mappings
-    supplier_map = data.groupby('Restaurant')['Canal'].apply(lambda x: ', '.join(map(str, x.unique()))).to_dict()
-    region_map = data.groupby('Restaurant')['Region'].first().to_dict()
-    
-    weekly_tracking['Suppliers'] = weekly_tracking.index.map(supplier_map)
-    weekly_tracking['Region'] = weekly_tracking.index.map(region_map)
-    
-    # Round GMV values
-    weekly_tracking = weekly_tracking.round()
-    
-    # Reset index for final output
-    weekly_tracking.reset_index(inplace=True)
-       
-    return weekly_tracking
-
-def classify_order_frequency_table(df, date_column='Date de commande', restaurant_column='Restaurant', order_id_column='numero de commande (valide)'):
-    # Ensure the date column is in datetime format
-    df[date_column] = pd.to_datetime(df[date_column], dayfirst=True, errors='coerce')
-
-    # Drop rows with invalid dates
-    if df[date_column].isnull().any():
-        print("Warning: Some rows have invalid date values. These will be excluded.")
-        df = df.dropna(subset=[date_column])
-
-    # Sort data by Restaurant and Date
-    df = df.sort_values(by=[restaurant_column, date_column])
-
-    # Initialize an empty list to store results
-    results = []
-
-    # Group by Restaurant
-    for restaurant, group in df.groupby(restaurant_column):
-        # Track each month’s classification separately
-        group['Month'] = group[date_column].dt.to_period('M')
-        monthly_classification = {}
-
-        # Loop through each month and classify ordering frequency
-        for month, month_data in group.groupby('Month'):
-            # Calculate days between orders
-            month_data = month_data.sort_values(date_column)
-            month_data['Days_Between'] = month_data[date_column].diff().dt.days
-
-            # Drop first NaN (as it has no previous order to compare)
-            month_data = month_data.dropna(subset=['Days_Between'])
-
-            # Calculate average days between orders for the month
-            avg_days = month_data['Days_Between'].mean()
-
-            # Classify based on average days between orders
-            if avg_days <= 7:
-                classification = "Weekly"
-            elif avg_days <= 14:
-                classification = "Biweekly"
-            elif avg_days <= 30:
-                classification = "Monthly"
-            else:
-                classification = "Infrequent"
-
-            # Save the classification for the month
-            monthly_classification[str(month)] = classification
-
-        # Determine the most common pattern over months or note mixed behavior
-        if monthly_classification:
-            main_pattern = pd.Series(list(monthly_classification.values())).mode()[0]
-            if len(set(monthly_classification.values())) > 1:
-                main_pattern = f"Mixed ({main_pattern})"
-        else:
-            main_pattern = "No Orders"
-
-        # Prepare row for this restaurant
-        row = {
-            "Restaurant Name": restaurant,
-            "Overall Classification": main_pattern,
-        }
-
-        # Add monthly classifications to the row
-        row.update(monthly_classification)
-        results.append(row)
-
-    # Convert results into a DataFrame for table format
-    result_df = pd.DataFrame(results)
-
-    # Fill NaN values with "-" for any missing months
-    result_df = result_df.fillna("-")
-
-    return result_df
-
-
-def create_weekly_supplier_gmv(data, agg_func='sum', week_start='Monday'):
-    """
-    Creates a table showing GMV per supplier on a weekly basis across all available years.
-
-    Args:
-    - data (pd.DataFrame): The dataset containing supplier GMV information.
-    - agg_func (str or function): Aggregation function for GMV. Defaults to 'sum'.
-    - week_start (str): Determines the start of the week. Defaults to 'Monday'.
-
-    Returns:
-    - pd.DataFrame: Weekly GMV table with suppliers across all years.
-    """
-    # Convert 'Date de commande' to datetime
-    data['Date de commande'] = pd.to_datetime(data['Date de commande'], dayfirst=True, errors='coerce')
-
-    # Ensure all GMV values are numeric, and replace NaN or invalid values with 0
-    data['GMV_Euro'] = pd.to_numeric(data['GMV_Euro'], errors='coerce').fillna(0)
-
-    # Drop rows with missing or invalid dates
-    data = data.dropna(subset=['Date de commande'])
-
-    # Extract Year-Week based on the specified week start
-    if week_start == 'Monday':
-        data['Year_Week'] = data['Date de commande'].dt.strftime('%Y-W%U')  # Week starting Monday
-    else:
-        data['Year_Week'] = data['Date de commande'].dt.strftime('%Y-W%U')  # Week starting Sunday
-
-    # Determine the full range of Year-Weeks present in the data
-    full_year_weeks = (
-        pd.date_range(
-            start=data['Date de commande'].min(),
-            end=data['Date de commande'].max(),
-            freq='W-MON' if week_start == 'Monday' else 'W-SUN'
-        )
-        .strftime('%Y-W%U')
-    )
-
-    # Create pivot table with weekly GMV per supplier
-    weekly_gmv = data.pivot_table(
-        index='Canal',  # Using 'Canal' for Supplier representation
-        columns='Year_Week',
-        values='GMV_Euro',
-        aggfunc=agg_func
-    ).fillna(0)
-
-    # Reindex columns to include all Year-Weeks
-    weekly_gmv = weekly_gmv.reindex(columns=full_year_weeks, fill_value=0)
-
-    # Validate GMV calculations (ensures summing is correct)
-    weekly_gmv['Total_GMV'] = weekly_gmv.sum(axis=1)
-
-    # Round GMV values to 2 decimal places
-    weekly_gmv = weekly_gmv.round(2)
-
-    # Reset index for a cleaner display
-    weekly_gmv.reset_index(inplace=True)
-
-    return weekly_gmv
-
-
-# -----------------
-
-
-
-
-
-
 def analysis(df_last_week, df_this_week):
-    st.title("Business Analysis")
+    st.title("Analysis")
     st.markdown("---")
 
     # **Summary Section**
@@ -826,12 +641,12 @@ st.title("Weekly Analysis")
 # File uploader for two weeks
 uploaded_file_Last_Week = st.file_uploader("Last Week", type="xlsx")
 uploaded_file_This_Week = st.file_uploader("This Week", type="xlsx")
-uploaded_file_data = st.file_uploader("Prepared Data", type="csv")
 
-if uploaded_file_Last_Week and uploaded_file_This_Week and uploaded_file_data:
+
+if uploaded_file_Last_Week and uploaded_file_This_Week:
     df_Last_Week = pd.read_excel(uploaded_file_Last_Week)
     df_This_Week = pd.read_excel(uploaded_file_This_Week)
-    df_data = pd.read_csv(uploaded_file_data)
+    
     # Round GMV column in both datasets to whole numbers (euros)
     df_Last_Week["GMV"] = df_Last_Week["GMV"].round(0).astype(int)
     df_This_Week["GMV"] = df_This_Week["GMV"].round(0).astype(int)
@@ -840,22 +655,10 @@ if uploaded_file_Last_Week and uploaded_file_This_Week and uploaded_file_data:
     st.sidebar.header("Select Analysis Sections")
     sections = st.sidebar.multiselect(
         "Choose Analysis Sections", 
-        ["Analysis","Pattern","Pricing"]
+        ["Analysis","Pricing"]
     )
 
-    if "Pattern" in sections:
 
-        st.subheader("Weekly Order Tracking and Pattern Analysis")
-        
-        # Calculate weekly order tracking
-        weekly_tracking = create_weekly_order_tracking(df_data)
-        
-        # Display the tracking table
-        st.write("### Weekly Order Tracking Table")
-        st.dataframe(weekly_tracking)
-        
-   
-        
     if "Analysis" in sections:
         analysis(df_Last_Week, df_This_Week)
         
