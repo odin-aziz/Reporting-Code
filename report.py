@@ -356,11 +356,6 @@ def analysis(df_last_week, df_this_week):
     st.markdown("---")
 
 
-
-
-
-
-
     # **6. Account Email GMV Comparison**
     st.header("Accounts")
     account_gmv_last = df_last_week.groupby("Account_email")["GMV"].sum()
@@ -595,6 +590,8 @@ def pricing(df_last_week, df_this_week):
             filtered_variant_data.groupby(["Price HT"], as_index=False)
             .agg({"GMV": "sum","Weight":"sum"})
         )
+        
+        st.write(filtered_variant_data)
 
         # Display the table
         st.write(gmv_by_price)
@@ -633,6 +630,137 @@ def pricing(df_last_week, df_this_week):
     
     st.dataframe(competitive_table)
 
+    competitor_supplier = st.sidebar.selectbox("Compare with Supplier", [s for s in supplier_list if s != supplier_filter])
+
+    competitor_df = df_combined[
+        (df_combined['Supplier'] == competitor_supplier) &
+        (df_combined['product_name'] == product_filter) &
+        (df_combined['variant_id'] == variant_filter)
+    ]
+
+    if not competitor_df.empty:
+        competitor_df["Date"] = pd.to_datetime(competitor_df["Date"])
+        competitor_df = competitor_df.sort_values(by="Date", ascending=True)
+        competitor_df["Price HT"] = (
+            (competitor_df["unit_price"] / 100) / competitor_df["Weight"]
+        ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+
+        fig.add_trace(px.line(competitor_df, x="Date", y="Price HT").data[0])
+
+    st.plotly_chart(fig)
+
+ 
+
+def Customers(df_last_week, df_this_week):
+    
+    st.title("Customers")
+
+    # Combine datasets and add week identifier
+    df_last_week["Week"] = "Last Week"
+    df_this_week["Week"] = "This Week"
+    df = pd.concat([df_last_week, df_this_week])
+    # Convert the Date column to datetime if not already
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+    # Get unique regions and add an 'All' option
+    regions = df["region"].unique().tolist()
+    regions.insert(0, "All Regions")
+
+    # Region selection dropdown
+    selected_region = st.selectbox("Select a Region", regions, key="region_select")
+
+    # Filter customers based on region if one is selected
+    if selected_region == "All Regions":
+        filtered_df = df
+    else:
+        filtered_df = df[df["region"] == selected_region]
+
+   # -------------------- WEEKLY ORDERS FOR ALL CUSTOMERS IN THE SELECTED REGION --------------------
+    st.subheader(f"Weekly Orders for Customers in {selected_region}")
+
+    # Extract week number from the Date column
+    filtered_df["Week_Number"] = filtered_df["Date"].dt.isocalendar().week
+
+    # Group by week, customer (Restaurant Name) and sum GMV
+    weekly_orders = filtered_df.groupby(["Week_Number", "Restaurant_name"])["GMV"].sum().reset_index()
+    weekly_orders_pivot = weekly_orders.pivot_table(index="Restaurant_name", columns="Week_Number", values="GMV", aggfunc="sum", fill_value=0)
+
+    # Display weekly orders table for all customers in the selected region
+    st.dataframe(weekly_orders_pivot.sort_index(axis=1))  # Sort by week number columns
+
+
+
+
+    # Get unique restaurant names
+    customers = filtered_df["Restaurant_name"].unique()
+    selected_customer = st.selectbox("Select a Customer", customers, key="customer_select")
+
+    if selected_customer:
+        # Filter data for the selected customer
+        customer_data = filtered_df[filtered_df["Restaurant_name"] == selected_customer]
+
+        # Extract customer info
+        customer_region = customer_data["region"].iloc[0]  # Assuming region is consistent
+        total_gmv = customer_data["GMV"].sum()
+
+        # GMV per supplier
+        suppliers_gmv = customer_data.groupby("Supplier")["GMV"].sum().reset_index()
+
+        # GMV per supplier and product
+        suppliers_products_gmv = customer_data.groupby(["Supplier", "product_name"])["GMV"].sum().reset_index()
+
+        # Display customer details
+        st.subheader(f"Customer: {selected_customer}")
+        st.write(f"**Region:** {customer_region}")
+        st.write(f"**Total GMV:** €{total_gmv:,.2f}")
+
+        # Display supplier GMV table
+        st.subheader("Suppliers & GMV")
+        st.dataframe(suppliers_gmv.sort_values(by="GMV", ascending=False))
+
+        # Display suppliers & products GMV table
+        st.subheader("Suppliers, Products & GMV")
+        st.dataframe(suppliers_products_gmv.sort_values(by="GMV", ascending=False))
+
+        st.subheader(f"Orders per Week for {selected_customer}")
+
+            # Extract week number from the Date column
+        customer_data["Week_Number"] = customer_data["Date"].dt.isocalendar().week
+
+            # Group by week, supplier and sum GMV
+        weekly_data = customer_data.groupby(["Week_Number", "Supplier"])["GMV"].sum().reset_index()
+
+            # Display weekly data table
+        st.dataframe(weekly_data.sort_values(by=["Week_Number", "GMV"], ascending=[True, False]))
+
+    else:
+            st.warning(f"No data found for customer: {selected_customer}")
+
+
+
+
+
+    suppliers = df["Supplier"].unique()
+    selected_supplier = st.selectbox("Select a Supplier", suppliers, key="supplier_select")
+
+    if selected_supplier:
+        # Filter data for the selected supplier
+        supplier_data = df[df["Supplier"] == selected_supplier]
+
+        # GMV per customer
+        customers_gmv = supplier_data.groupby("Restaurant_name")["GMV"].sum().reset_index()
+
+        # GMV per customer and product
+        customers_products_gmv = supplier_data.groupby(["Restaurant_name", "product_name"])["GMV"].sum().reset_index()
+
+        # Display customer GMV table
+        st.subheader(f"Customers of {selected_supplier} & GMV")
+        st.dataframe(customers_gmv.sort_values(by="GMV", ascending=False))
+
+        # Display customers & products GMV table
+        st.subheader(f"Customers, Products & GMV for {selected_supplier}")
+        st.dataframe(customers_products_gmv.sort_values(by="GMV", ascending=False))
+
 
 
 
@@ -655,7 +783,7 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
     st.sidebar.header("Select Analysis Sections")
     sections = st.sidebar.multiselect(
         "Choose Analysis Sections", 
-        ["Analysis","Pricing"]
+        ["Analysis","Pricing","Customers"]
     )
 
 
@@ -665,6 +793,10 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
 
     if "Pricing" in sections:
         pricing(df_Last_Week, df_This_Week)
+    
+    
+    if "Customers" in sections:
+        Customers(df_Last_Week, df_This_Week)
 
 else:
     st.warning("Please upload data files for both weeks.")
