@@ -625,29 +625,29 @@ def pricing(df_last_week, df_this_week):
 
   
     # Sample data
-    competitive_table = final_table2[final_table2["product_name"] == product_filter][["variant_id", "Supplier", "This Week Price HT"]]
-    competitive_table = competitive_table[competitive_table["This Week Price HT"] != 0]
+    # competitive_table = final_table2[final_table2["product_name"] == product_filter][["variant_id", "Supplier", "This Week Price HT"]]
+    # competitive_table = competitive_table[competitive_table["This Week Price HT"] != 0]
     
-    st.dataframe(competitive_table)
+    # st.dataframe(competitive_table)
 
-    competitor_supplier = st.sidebar.selectbox("Compare with Supplier", [s for s in supplier_list if s != supplier_filter])
+    # competitor_supplier = st.sidebar.selectbox("Compare with Supplier", [s for s in supplier_list if s != supplier_filter])
 
-    competitor_df = df_combined[
-        (df_combined['Supplier'] == competitor_supplier) &
-        (df_combined['product_name'] == product_filter) &
-        (df_combined['variant_id'] == variant_filter)
-    ]
+    # competitor_df = df_combined[
+    #     (df_combined['Supplier'] == competitor_supplier) &
+    #     (df_combined['product_name'] == product_filter) &
+    #     (df_combined['variant_id'] == variant_filter)
+    # ]
 
-    if not competitor_df.empty:
-        competitor_df["Date"] = pd.to_datetime(competitor_df["Date"])
-        competitor_df = competitor_df.sort_values(by="Date", ascending=True)
-        competitor_df["Price HT"] = (
-            (competitor_df["unit_price"] / 100) / competitor_df["Weight"]
-        ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+    # if not competitor_df.empty:
+    #     competitor_df["Date"] = pd.to_datetime(competitor_df["Date"])
+    #     competitor_df = competitor_df.sort_values(by="Date", ascending=True)
+    #     competitor_df["Price HT"] = (
+    #         (competitor_df["unit_price"] / 100) / competitor_df["Weight"]
+    #     ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
 
-        fig.add_trace(px.line(competitor_df, x="Date", y="Price HT").data[0])
+    #     fig.add_trace(px.line(competitor_df, x="Date", y="Price HT").data[0])
 
-    st.plotly_chart(fig)
+    # st.plotly_chart(fig)
 
  
 
