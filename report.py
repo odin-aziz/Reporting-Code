@@ -687,7 +687,7 @@ def Customers(df_last_week, df_this_week):
 
     # Display weekly orders table for all customers in the selected region
     st.dataframe(weekly_orders_pivot.sort_index(axis=1))  # Sort by week number columns
-
+    
 
 
 
@@ -760,6 +760,151 @@ def Customers(df_last_week, df_this_week):
         # Display customers & products GMV table
         st.subheader(f"Customers, Products & GMV for {selected_supplier}")
         st.dataframe(customers_products_gmv.sort_values(by="GMV", ascending=False))
+
+
+    st.subheader("View by Account Manager")
+        # -------------------- REGION FILTER --------------------    
+    # Get unique regions and add an 'All' option
+    regions = df["region"].unique().tolist()
+    regions.insert(0, "All Regions")
+
+    # Region selection dropdown
+    selected_region = st.selectbox("Select a Region", regions, key="account_manager_region_select")
+
+    # Filter data by region if one is selected
+    if selected_region == "All Regions":
+        filtered_df = df
+    else:
+        filtered_df = df[df["region"] == selected_region]
+
+    # Get unique account managers based on region filter
+    account_managers = filtered_df["Account_email"].unique()
+    selected_account_manager = st.selectbox("Select an Account Manager", account_managers, key="account_manager_select")
+
+    if selected_account_manager:
+        # Filter data for the selected account manager
+        account_manager_data = filtered_df[filtered_df["Account_email"] == selected_account_manager]
+
+        if not account_manager_data.empty:
+            # Total GMV
+            total_gmv = account_manager_data["GMV"].sum()
+
+            # Total number of unique customers
+            unique_customers_count = account_manager_data["Restaurant_name"].nunique()
+
+            # Regions covered by the account manager
+            regions_covered = account_manager_data["region"].unique().tolist()
+
+            # GMV per customer
+            customer_gmv = account_manager_data.groupby("Restaurant_name")["GMV"].sum().reset_index().sort_values(by="GMV", ascending=False)
+
+            # GMV per product
+            product_gmv = account_manager_data.groupby("product_name")["GMV"].sum().reset_index().sort_values(by="GMV", ascending=False)
+
+            # Display stats
+            st.write(f"**Total GMV:** €{total_gmv:,.2f}")
+            st.write(f"**Total Unique Customers:** {unique_customers_count}")
+            st.write(f"**Regions Covered:** {', '.join(regions_covered)}")
+
+            # Display customer GMV table
+            st.subheader("Customers & GMV")
+            st.dataframe(customer_gmv)
+
+            # Display product GMV table
+            st.subheader("Products Sold & GMV")
+            st.dataframe(product_gmv)
+        else:
+            st.warning(f"No data found for account manager: {selected_account_manager}")
+
+    # Extract week number for grouping
+    df['Week Number'] = df['Date'].dt.isocalendar().week
+
+    # -------------------- WEEKLY GMV BY ACCOUNT MANAGER --------------------
+    st.subheader("Weekly GMV by Account Manager")
+
+    # Group data by week and account manager
+    weekly_gmv = (
+        df.groupby(["Week Number", "Account_email"])["GMV"]
+        .sum()
+        .reset_index()
+        .rename(columns={"Account_email": "Account Manager"})
+    )
+
+    # Pivot table for account manager GMV
+    weekly_gmv_pivot = weekly_gmv.pivot_table(
+        index="Account Manager",
+        columns="Week Number",
+        values="GMV",
+        fill_value=0
+    )
+
+    # Display the weekly GMV for all account managers
+    st.dataframe(weekly_gmv_pivot)
+
+    # -------------------- ACCOUNT MANAGER FILTER --------------------
+    st.subheader("Choose an Account Manager")
+
+    # Get unique account managers
+    account_managers = df["Account_email"].unique().tolist()
+    selected_manager = st.selectbox("Select an Account Manager", ["All Managers"] + account_managers)
+
+    # -------------------- WEEKLY ORDERS BY CUSTOMERS FOR SELECTED MANAGER --------------------
+    if selected_manager != "All Managers":
+        st.subheader(f"Weekly Orders for {selected_manager}")
+
+        # Filter data for the selected account manager
+        manager_data = df[df["Account_email"] == selected_manager]
+
+        # Group data by week and customer
+        weekly_orders = (
+            manager_data.groupby(["Week Number", "Restaurant_name"])["GMV"]
+            .sum()
+            .reset_index()
+        )
+
+        # Pivot table for weekly customer orders
+        weekly_orders_pivot = weekly_orders.pivot_table(
+            index="Restaurant_name",
+            columns="Week Number",
+            values="GMV",
+            fill_value=0
+        )
+
+        # Display the weekly orders for the customers of the selected manager
+        st.dataframe(weekly_orders_pivot)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
