@@ -761,8 +761,17 @@ def Customers(df_last_week, df_this_week):
         st.subheader(f"Customers, Products & GMV for {selected_supplier}")
         st.dataframe(customers_products_gmv.sort_values(by="GMV", ascending=False))
 
+def accounts(df_last_week, df_this_week):
+    
+    st.title("View by Account Managers")
 
-    st.subheader("View by Account Manager")
+    # Combine datasets and add week identifier
+    df_last_week["Week"] = "Last Week"
+    df_this_week["Week"] = "This Week"
+    df = pd.concat([df_last_week, df_this_week])
+    # Convert the Date column to datetime if not already
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
         # -------------------- REGION FILTER --------------------    
     # Get unique regions and add an 'All' option
     regions = df["region"].unique().tolist()
@@ -799,7 +808,7 @@ def Customers(df_last_week, df_this_week):
             customer_gmv = account_manager_data.groupby("Restaurant_name")["GMV"].sum().reset_index().sort_values(by="GMV", ascending=False)
 
             # GMV per product
-            product_gmv = account_manager_data.groupby("product_name")["GMV"].sum().reset_index().sort_values(by="GMV", ascending=False)
+            product_gmv = account_manager_data.groupby(["product_name", "Supplier"])["GMV"].sum().reset_index().sort_values(by="GMV", ascending=False)
 
             # Display stats
             st.write(f"**Total GMV:** €{total_gmv:,.2f}")
@@ -879,36 +888,6 @@ def Customers(df_last_week, df_this_week):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 st.title("Weekly Analysis")
 
 # File uploader for two weeks
@@ -928,7 +907,7 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
     st.sidebar.header("Select Analysis Sections")
     sections = st.sidebar.multiselect(
         "Choose Analysis Sections", 
-        ["Analysis","Pricing","Customers"]
+        ["Analysis","Pricing","Customers","Account Managers"]
     )
 
 
@@ -942,6 +921,9 @@ if uploaded_file_Last_Week and uploaded_file_This_Week:
     
     if "Customers" in sections:
         Customers(df_Last_Week, df_This_Week)
+
+    if "Account Managers" in sections:
+        accounts(df_Last_Week, df_This_Week)
 
 else:
     st.warning("Please upload data files for both weeks.")
