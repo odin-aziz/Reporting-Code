@@ -591,8 +591,6 @@ def pricing(df_last_week, df_this_week):
             .agg({"GMV": "sum","Weight":"sum"})
         )
         
-        st.write(filtered_variant_data)
-
         # Display the table
         st.write(gmv_by_price)
 
@@ -624,32 +622,85 @@ def pricing(df_last_week, df_this_week):
     st.plotly_chart(fig)
 
   
-    # Sample data
-    # competitive_table = final_table2[final_table2["product_name"] == product_filter][["variant_id", "Supplier", "This Week Price HT"]]
-    # competitive_table = competitive_table[competitive_table["This Week Price HT"] != 0]
+    competitive_table = final_table2[final_table2["product_name"] == product_filter][["variant_id", "Supplier", "This Week Price HT"]]
+    competitive_table = competitive_table[competitive_table["This Week Price HT"] != 0]
     
-    # st.dataframe(competitive_table)
+    st.dataframe(competitive_table)
+   
+    # Step 1: Allow the user to select multiple suppliers for comparison (same as before)
+    supplier_list = df_combined["Supplier"].unique()
+    selected_suppliers = st.sidebar.multiselect("Select Suppliers to Compare", supplier_list)
 
-    # competitor_supplier = st.sidebar.selectbox("Compare with Supplier", [s for s in supplier_list if s != supplier_filter])
+    # Step 2: Filter data for each selected supplier
+    filtered_data = df_combined[
+        (df_combined["product_name"] == product_filter) & 
+        (df_combined["Supplier"].isin(selected_suppliers))
+    ]
 
-    # competitor_df = df_combined[
-    #     (df_combined['Supplier'] == competitor_supplier) &
-    #     (df_combined['product_name'] == product_filter) &
-    #     (df_combined['variant_id'] == variant_filter)
-    # ]
+    # Step 4: Check if there's any data after filtering
+    if filtered_data.empty:
+        st.warning("No data available for the selected suppliers and product.")
+    else:
+        # Step 5: Convert Date column to datetime format
+        filtered_data["Date"] = pd.to_datetime(filtered_data["Date"])
+    
+        # Step 6: Sort by Date (ensures last occurrence per day is taken)
+        filtered_data = filtered_data.sort_values(by="Date", ascending=True)
 
-    # if not competitor_df.empty:
-    #     competitor_df["Date"] = pd.to_datetime(competitor_df["Date"])
-    #     competitor_df = competitor_df.sort_values(by="Date", ascending=True)
-    #     competitor_df["Price HT"] = (
-    #         (competitor_df["unit_price"] / 100) / competitor_df["Weight"]
-    #     ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+        # Step 7: Keep only the last occurrence per day for each supplier
+        last_transaction_per_day = filtered_data.groupby(["Supplier", filtered_data["Date"].dt.date]).tail(1).reset_index()
 
-    #     fig.add_trace(px.line(competitor_df, x="Date", y="Price HT").data[0])
+        # Step 8: Calculate Price HT
+        last_transaction_per_day["Price HT"] = (
+            (last_transaction_per_day["unit_price"] / 100) / last_transaction_per_day["Weight"]
+        ).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
 
-    # st.plotly_chart(fig)
+        # Step 9: Pivot the data to have Dates as columns and Suppliers as rows
+        pivoted_data = last_transaction_per_day.pivot_table(
+            index="Supplier", 
+            columns="Date", 
+            values="Price HT", 
+            aggfunc="mean"  # Use mean in case there are multiple prices for the same supplier and date
+        )
 
- 
+        # Step 10: Display the pivoted table
+        st.subheader(f"Price Comparison Data: {product_filter}")
+        st.dataframe(pivoted_data)
+
+    fig2 = px.line(
+        last_transaction_per_day, 
+        x="Date", 
+        y="Price HT", 
+        color="Supplier",  # Different colors for each supplier
+        markers=True, 
+        title=f"Price Comparison: {product_filter}",
+        labels={"Date": "Days", "Price HT": "Price (€)"},
+        line_shape="linear"
+    )
+
+    # Customize the appearance of the new chart
+    fig2.update_layout(
+        xaxis_title="Days",
+        yaxis_title="Price (€)",
+        template="plotly_white",
+        hovermode="x",
+        legend_title="Suppliers"
+    )
+
+    # Step 6: Display the new chart
+    st.plotly_chart(fig2)
+
+
+
+
+
+
+
+
+
+
+
+
 
 def Customers(df_last_week, df_this_week):
     
