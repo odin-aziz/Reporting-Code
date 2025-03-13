@@ -594,7 +594,7 @@ def pricing(df_last_week, df_this_week):
         # Display the table
         st.write(gmv_by_price)
 
-
+#
 
     st.header("Price Evolution Chart")
 
