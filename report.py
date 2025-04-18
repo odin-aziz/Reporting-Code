@@ -906,10 +906,10 @@ def accounts(df_last_week, df_this_week):
 
     # Group data by week and account manager
     weekly_gmv_product = (
-        df.groupby(["Week Number", "product_namme"])["GMV"]
+        df.groupby(["Week Number", "product_name"])["GMV"]
         .sum()
         .reset_index()
-        .rename(columns={"product_namme": "Product Name"})
+        .rename(columns={"product_name": "Product Name"})
     )
 
     # Pivot table for account manager GMV
@@ -921,7 +921,7 @@ def accounts(df_last_week, df_this_week):
     )
 
     # Display the weekly GMV for all account managers
-    st.dataframe(weekly_gmv_pivot)
+    st.dataframe(weekly_gmv_product_pivot)
 
 
 
